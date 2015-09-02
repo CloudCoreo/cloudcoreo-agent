@@ -209,6 +209,8 @@ def get_environment_dict():
         if 'value' in value.keys() and value['value'] != None:
             #environment[var.to_s] = value['value']
             environment[var] = value['value']
+        elif 'type' in vlaue.keys() and value['type'] == 'case':
+            
         else:
             #elsif ! value['default'].nil? then
             environment[var] = value.get('default','')
