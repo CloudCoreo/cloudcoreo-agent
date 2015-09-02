@@ -99,10 +99,6 @@ def get_coreo_appstackinstance_config():
 def get_coreo_appstackinstance():
     content = open("%s/appstack_instance.out" % options.workDir, 'r').read()
     return json.loads(content)
-
-def get_attributes():
-    content = open("%s/attributes.out" % options.workDir, 'r').read()
-    return json.loads(content)
     
 def mkdir_p(path):
     if not os.path.exists(path):
@@ -202,8 +198,7 @@ def get_environment_dict():
     all_vars['variables'] = default_vars['variables']
     all_vars['variables'].update(instance_vars['variables'])
     for var in all_vars['variables']:
-        newvalue = all_vars['variables'][var]
-        value = replace_instance_variables(newvalue)
+        value = all_vars['variables'][var]
         log("value: %s" % value)
         #if ! value['value'].nil? then
         if 'value' in value.keys() and value['value'] != None:
@@ -213,14 +208,6 @@ def get_environment_dict():
             #elsif ! value['default'].nil? then
             environment[var] = value.get('default','')
     return environment
-
-def replace_instance_variables(var):
-    if "INSTANCE::" in var:
-        attributes = get_attributes();
-        value = 
-    else:
-        return var
-    
 
 ######################################################################
 ### this is all to deal with overriding service config.rb files
