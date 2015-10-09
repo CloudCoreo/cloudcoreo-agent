@@ -23,6 +23,8 @@ import time
 import rsa
 import string
 import yaml
+import unicodedata
+import re
 
 logging.basicConfig()
 def parseArgs():
@@ -192,8 +194,8 @@ def get_environment_dict():
     log("got default from appstack [%s]" % default_config)
     config = get_config()
     log("got config [%s]" % config)
-    default_vars = json.loads(default_config['config'], strict=False)
-    instance_vars = json.loads(config['document'], strict=False)
+    default_vars = json.loads(re.sub('\n', r'', unicodedata.normalize('NFKD', default_config['config']).encode('ascii','ignore')))
+    instance_vars = json.loads(re.sub('\n', r'', unicodedata.normalize('NFKD', config['document']).encode('ascii','ignore')))
     all_vars = {};
     all_vars['variables'] = default_vars['variables']
     all_vars['variables'].update(instance_vars['variables'])
@@ -228,6 +230,8 @@ def get_script_order_files(rootDir, server_name):
             log("checking if boot-scritsorder is in [%s]" % strings_replaced)
             if "boot-scriptsorder" in strings_replaced:
                 order_files.append(full_path)
+    if len(order_files) == 0 and server_name != "repo":
+        order_files = get_script_order_files(rootDir, "repo")
     log("found ordered_files: %s" % order_files)
     order_files.sort(key = len, reverse = True)
     log("order_files %s" % order_files)
@@ -324,7 +328,7 @@ def bootstrap():
 
 ## globals for caching
 MY_AZ = None
-version = '0.1.12'
+version = '0.1.13'
 COMPLETE_STRING = "COREO::BOOTSTRAP::complete"
 
 ## lets set up a lock file so we don't rerun on bootstrap... this will
