@@ -192,8 +192,8 @@ def get_environment_dict():
     log("got default from appstack [%s]" % default_config)
     config = get_config()
     log("got config [%s]" % config)
-    default_vars = json.loads(default_config['config'])
-    instance_vars = json.loads(config['document'])
+    default_vars = json.loads(default_config['config'], strict=False)
+    instance_vars = json.loads(config['document'], strict=False)
     all_vars = {};
     all_vars['variables'] = default_vars['variables']
     all_vars['variables'].update(instance_vars['variables'])
