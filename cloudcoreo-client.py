@@ -324,7 +324,7 @@ def bootstrap():
 
 ## globals for caching
 MY_AZ = None
-version = '0.1.11'
+version = '0.1.12'
 COMPLETE_STRING = "COREO::BOOTSTRAP::complete"
 
 ## lets set up a lock file so we don't rerun on bootstrap... this will
