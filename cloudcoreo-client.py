@@ -144,8 +144,8 @@ def cloneForAsi(asi_id, branch, revision, repo_url, keyMaterial, workdir):
     ## now we do the cloning
     log("os.chdir(%s)" % workdir)
     os.chdir(workdir)
-    log("cloning repo from url: %s" % repo_url)
-    git(ssh_wrapper_path, workdir, "clone", repo_url, "repo")
+    log("cloning repo from url: %s" % repo_url.strip())
+    git(ssh_wrapper_path, workdir, "clone", repo_url.strip(), "repo")
     log("os.chdir(%s/repo)" % workdir)
     os.chdir("%s/repo" % workdir)
     
@@ -328,7 +328,7 @@ def bootstrap():
 
 ## globals for caching
 MY_AZ = None
-version = '0.1.13'
+version = '0.1.14'
 COMPLETE_STRING = "COREO::BOOTSTRAP::complete"
 
 ## lets set up a lock file so we don't rerun on bootstrap... this will
