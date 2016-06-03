@@ -35,6 +35,15 @@ SQS_VISIBILITY_TIMEOUT = 0
 logging.basicConfig()
 
 
+def publish_to_sns(message_text, topic_arn):
+    client = boto3.client('sns')
+    response = client.publish(
+        TopicArn=topic_arn,
+        Message=message_text
+    )
+    print response
+
+
 def get_sqs_messages(queue_url):
     client = boto3.client('sqs')
     while 1:
