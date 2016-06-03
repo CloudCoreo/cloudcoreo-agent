@@ -10,6 +10,8 @@
 # --asi-id "<asi-id>" --server-name server-nat
 #
 ######################################################################
+import time
+import boto3
 import datetime
 import json
 import logging
@@ -28,7 +30,21 @@ import stat
 import sys
 import yaml
 
+SQS_GET_MESSAGES_SLEEP_TIME = 10
+SQS_VISIBILITY_TIMEOUT = 0
 logging.basicConfig()
+
+
+def get_sqs_messages(queue_url):
+    client = boto3.client('sqs')
+    while 1:
+        response = client.receive_message(
+            QueueUrl=queue_url,
+            VisibilityTimeout=SQS_VISIBILITY_TIMEOUT,
+            WaitTimeSeconds=20
+        )
+        print response
+        time.sleep(SQS_GET_MESSAGES_SLEEP_TIME)
 
 
 def parse_args():
