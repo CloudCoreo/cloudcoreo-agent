@@ -21,7 +21,6 @@ import traceback
 import unicodedata
 from tempfile import mkstemp
 
-import boto.sqs
 import os
 import re
 import requests
@@ -32,27 +31,16 @@ import yaml
 SQS_GET_MESSAGES_SLEEP_TIME = 10
 SQS_VISIBILITY_TIMEOUT = 0
 logging.basicConfig()
+SQS_CLIENT = boto3.client('sqs')
+SNS_CLIENT = boto3.client('sns')
 
 
 def publish_to_sns(message_text, topic_arn):
-    client = boto3.client('sns')
-    response = client.publish(
+    sns_response = SNS_CLIENT.publish(
         TopicArn=topic_arn,
         Message=message_text
     )
-    print response
-
-
-def get_sqs_messages(queue_url):
-    client = boto3.client('sqs')
-    while 1:
-        response = client.receive_message(
-            QueueUrl=queue_url,
-            VisibilityTimeout=SQS_VISIBILITY_TIMEOUT,
-            WaitTimeSeconds=20
-        )
-        print response
-        time.sleep(SQS_GET_MESSAGES_SLEEP_TIME)
+    return sns_response
 
 
 class DotDict(dict):
@@ -389,6 +377,16 @@ if options.version:
     print "%s" % version
     sys.exit(0)
 
+
+def get_sqs_messages(queue_url):
+    response = SQS_CLIENT.receive_message(
+        QueueUrl=queue_url,
+        VisibilityTimeout=SQS_VISIBILITY_TIMEOUT,
+        WaitTimeSeconds=20
+    )
+    return response
+
+
 while True:
     try:
         if not os.path.isfile(LOCK_FILE_PATH):
@@ -397,20 +395,14 @@ while True:
                 os.utime(LOCK_FILE_PATH, None)
         if COMPLETE_STRING not in open(LOCK_FILE_PATH, 'r').read():
             bootstrap()
-        SQS = boto.sqs.connect_to_region(get_region(), aws_access_key_id=options.access_key_id,
-                                         aws_secret_access_key=options.secret_access_key)
-        QUEUE_NAME = options.queue_url.split('/')[-1].strip()
-        QUEUE = SQS.get_queue(queue_name=QUEUE_NAME)
+        sqs_messages = get_sqs_messages(options.queue_url)
+        if not sqs_messages:
+            raise ValueError("Error while getting SQS messages.")
 
-        if not QUEUE:
-            raise ValueError, "Queue does not exist."
-
-        messages = QUEUE.get_messages(1, wait_time_seconds=20)
-        if len(messages):
-            SQS = None
+        if len(sqs_messages):
             os.environ['AWS_ACCESS_KEY_ID'] = ''
             os.environ['AWS_SECRED_ACCESS_KEY'] = ''
-            raw_message = messages[0]
+            raw_message = sqs_messages[0]
             message = json.loads(raw_message.get_body())
             message_type = message['type']
             if message_type.lower() == 'runcommand':
@@ -423,8 +415,7 @@ while True:
                     log("exception: %s" % str(ex))
             else:
                 log("unknown message type")
-            QUEUE.delete_message(message)
-        SQS = None
+            # sqs_messages.delete_message(message)
     except Exception as ex:
         log("Exception caught: [%s]" % str(ex))
         log(traceback.format_exc())
