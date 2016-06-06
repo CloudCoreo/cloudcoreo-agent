@@ -2,10 +2,10 @@
 ######################################################################
 # Cloudcoreo client
 #   example of a debug run:
-#       workdir=/tmp/53d6375b01f98c8230f72e83 ;set | grep -v -e " " -e IFS -e SHELLOPTS -e rvm -e RVM >
-# "$workdir/env.out"; rm -rf $workdir/5* ;python cloudcoreo-client.py --debug --access-key-id <your access key id>
+#       work_dir=/tmp/53d6375b01f98c8230f72e83 ;set | grep -v -e " " -e IFS -e SHELLOPTS -e rvm -e RVM >
+# "$work_dir/env.out"; rm -rf $work_dir/5* ;python cloudcoreo-client.py --debug --access-key-id <your access key id>
 # --secret-access-key <your secret access key>
-# --queue-url https://sqs.us-east-1.amazonaws.com/910887748405/coreo-asi-<asi-id>-i-db404ff1 --work-dir $workdir
+# --queue-url https://sqs.us-east-1.amazonaws.com/910887748405/coreo-asi-<asi-id>-i-db404ff1 --work-dir $work_dir
 # --cloudcoreo-secret-key "<cloudcoreo secret key>" --cloudcoreo-url http://localhost:3000
 # --asi-id "<asi-id>" --server-name server-nat
 #
@@ -19,7 +19,6 @@ import string
 import subprocess
 import traceback
 import unicodedata
-from optparse import OptionParser
 from tempfile import mkstemp
 
 import boto.sqs
@@ -56,36 +55,29 @@ def get_sqs_messages(queue_url):
         time.sleep(SQS_GET_MESSAGES_SLEEP_TIME)
 
 
-def parse_args():
-    parser = OptionParser("usage: %prog [options]")
-    parser.add_option("--access-key-id", dest="accessKeyId", default=None,
-                      help="The access key id for the cloudcoreo IAM user")
-    parser.add_option("--secret-access-key", dest="secretAccessKey", default=None,
-                      help="The secred access key for the cloudcoreo IAM user")
-    parser.add_option("--queue-url", dest="queueUrl", default=None,
-                      help="The url for the sqs queue owned by cloudcoreo")
-    parser.add_option("--work-dir", dest="workDir", default=None,
-                      help="Where cloudcoroe should be doing the work (git clone etc)")
-    parser.add_option("--cloudcoreo-secret-key", dest="ccSecretKey", default=None, help="Cloudcoreo authentication key")
-    parser.add_option("--cloudcoreo-url", dest="ccUrl", default=None, help="CloudCoreo API endpoint")
-    parser.add_option("--asi-id", dest="asiId", default=None, help="The appstack instance ID this server belongs to")
-    parser.add_option("--server-name", dest="serverName", default=None, help="This servers name")
-    parser.add_option("--debug", dest="debug", default=False, action="store_true",
-                      help="Whether or not to run the app in debug mode [default: %default]")
-    parser.add_option("--version", dest="version", default=False, action="store_true",
-                      help="Display the current version")
-    parser.add_option("--log-file", dest="logFile", default="/var/log/cloudcoreo-client.log",
-                      help="The log file in which to dump debug information [default: %default]")
-    return parser.parse_args()
+class DotDict(dict):
+    """dot.notation access to dictionary attributes"""
+
+    def __getattr__(self, attr):
+        return self.get(attr)
+
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
+
+def get_configs(path):
+    with open(path, 'r') as ymlfile:
+        configs = yaml.load(ymlfile)
+    return DotDict(configs)
 
 
 def log(statement):
     statement = str(statement)
-    if options.logFile is None:
+    if options.log_file is None:
         return
-    if not os.path.exists(os.path.dirname(options.logFile)):
-        os.makedirs(os.path.dirname(options.logFile))
-    log_file = open(options.logFile, 'a')
+    if not os.path.exists(os.path.dirname(options.log_file)):
+        os.makedirs(os.path.dirname(options.log_file))
+    log_file = open(options.log_file, 'a')
     ts = datetime.datetime.now()
     is_first = True
     for line in statement.split("\n"):
@@ -127,22 +119,22 @@ def meta_data(data_path):
 
 
 def get_coreo_key():
-    content = open("%s/git_key.out" % options.workDir, 'r').read()
+    content = open("%s/git_key.out" % options.work_dir, 'r').read()
     return json.loads(content)
 
 
 def get_coreo_appstack():
-    content = open("%s/appstack.out" % options.workDir, 'r').read()
+    content = open("%s/appstack.out" % options.work_dir, 'r').read()
     return json.loads(content)
 
 
 def get_coreo_appstackinstance_config():
-    content = open("%s/appstack_instance_config.out" % options.workDir, 'r').read()
+    content = open("%s/appstack_instance_config.out" % options.work_dir, 'r').read()
     return json.loads(content)
 
 
 def get_coreo_appstackinstance():
-    content = open("%s/appstack_instance.out" % options.workDir, 'r').read()
+    content = open("%s/appstack_instance.out" % options.work_dir, 'r').read()
     return json.loads(content)
 
 
@@ -297,7 +289,7 @@ def set_env(env_list):
         os.environ[key] = str(val).strip().strip('"')
 
     # the order matters here - the env.out has to be last
-    with open("%s/env.out" % options.workDir) as f:
+    with open("%s/env.out" % options.work_dir) as f:
         for line in f:
             values = line.split('=')
             if len(values) == 2:
@@ -308,7 +300,7 @@ def set_env(env_list):
 def run_cmd(work_dir, *args):
     print("cwd=%s" % work_dir)
     print("running command: %s" % str(list(args)))
-    with open(options.logFile, 'a') as log_file:
+    with open(options.log_file, 'a') as log_file:
         proc_ret_code = subprocess.call(list(args),
                                         cwd=work_dir,
                                         shell=False,
@@ -377,12 +369,12 @@ def bootstrap():
     key = get_coreo_key()
     #  Coreo::GIT.clone_for_asi("#{DaemonKit.arguments.options[:asi_id]}", asi['branch'], asi['revision'],
     # asi['gitUrl'], asi['keyMaterial'], "#{DaemonKit.arguments.options[:work_dir]}")
-    clone_for_asi(asi['branch'], asi['revision'], appstack['gitUrl'], key['keyMaterial'], options.workDir)
+    clone_for_asi(asi['branch'], asi['revision'], appstack['gitUrl'], key['keyMaterial'], options.work_dir)
     #  run_all_boot_scripts("#{DaemonKit.arguments.options[:work_dir]}", "#{DaemonKit.arguments.options[:server_name]}")
-    run_all_boot_scripts(options.workDir, options.serverName)
+    run_all_boot_scripts(options.work_dir, options.serverName)
 
 
-(options, args) = parse_args()
+options = get_configs('test.yaml')
 
 # globals for caching
 MY_AZ = None
@@ -391,7 +383,7 @@ COMPLETE_STRING = "COREO::BOOTSTRAP::complete"
 
 # lets set up a lock file so we don't rerun on bootstrap... this will
 # also allow people to remove the lock file to rerun everything
-LOCK_FILE_PATH = "%s/bootstrap.lock" % options.workDir
+LOCK_FILE_PATH = "%s/bootstrap.lock" % options.work_dir
 
 if options.version:
     print "%s" % version
@@ -405,10 +397,9 @@ while True:
                 os.utime(LOCK_FILE_PATH, None)
         if COMPLETE_STRING not in open(LOCK_FILE_PATH, 'r').read():
             bootstrap()
-        SQS = boto.sqs.connect_to_region(get_region(),
-                                         aws_access_key_id=options.accessKeyId,
-                                         aws_secret_access_key=options.secretAccessKey)
-        QUEUE_NAME = options.queueUrl.split('/')[-1].strip()
+        SQS = boto.sqs.connect_to_region(get_region(), aws_access_key_id=options.access_key_id,
+                                         aws_secret_access_key=options.secret_access_key)
+        QUEUE_NAME = options.queue_url.split('/')[-1].strip()
         QUEUE = SQS.get_queue(queue_name=QUEUE_NAME)
 
         if not QUEUE:
