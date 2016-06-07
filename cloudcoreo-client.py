@@ -19,6 +19,7 @@ import string
 import subprocess
 import traceback
 import unicodedata
+import subprocess
 from tempfile import mkstemp
 
 import os
@@ -387,6 +388,14 @@ def get_sqs_messages(queue_url):
     return response
 
 
+def get_last_commit_hash_local():
+    return subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
+
+
+def get_last_commit_hash_on_remote():
+    return subprocess.check_output(['git', 'rev-parse', 'origin/master']).strip()
+
+
 while True:
     try:
         if not os.path.isfile(LOCK_FILE_PATH):
@@ -415,7 +424,7 @@ while True:
                     log("exception: %s" % str(ex))
             else:
                 log("unknown message type")
-            # sqs_messages.delete_message(message)
+                # sqs_messages.delete_message(message)
     except Exception as ex:
         log("Exception caught: [%s]" % str(ex))
         log(traceback.format_exc())
