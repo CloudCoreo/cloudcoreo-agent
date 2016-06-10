@@ -20,6 +20,7 @@ import subprocess
 import traceback
 import unicodedata
 import subprocess
+import argparse
 from tempfile import mkstemp
 
 import os
@@ -34,6 +35,7 @@ SQS_VISIBILITY_TIMEOUT = 0
 logging.basicConfig()
 SQS_CLIENT = boto3.client('sqs')
 SNS_CLIENT = boto3.client('sns')
+DEFAULT_CONFIG_FILE_LOCATION = '/etc/cloudcoreo/agent.conf'
 
 
 def publish_to_sns(message_text, topic_arn):
@@ -62,22 +64,22 @@ def get_configs(path):
 
 def log(statement):
     statement = str(statement)
-    if options.log_file is None:
+    if OPTIONS_FROM_CONFIG_FILE.log_file is None:
         return
-    if not os.path.exists(os.path.dirname(options.log_file)):
-        os.makedirs(os.path.dirname(options.log_file))
-    log_file = open(options.log_file, 'a')
+    if not os.path.exists(os.path.dirname(OPTIONS_FROM_CONFIG_FILE.log_file)):
+        os.makedirs(os.path.dirname(OPTIONS_FROM_CONFIG_FILE.log_file))
+    log_file = open(OPTIONS_FROM_CONFIG_FILE.log_file, 'a')
     ts = datetime.datetime.now()
     is_first = True
     for line in statement.split("\n"):
         if is_first:
-            if options.debug:
+            if OPTIONS_FROM_CONFIG_FILE.debug:
                 print("%s - %s\n" % (ts, line))
             else:
                 log_file.write("%s - %s\n" % (ts, line))
             is_first = False
         else:
-            if options.debug:
+            if OPTIONS_FROM_CONFIG_FILE.debug:
                 print("%s -    %s\n" % (ts, line))
             else:
                 log_file.write("%s -    %s\n" % (ts, line))
@@ -88,7 +90,7 @@ def get_availability_zone():
     # cached
     global MY_AZ
     if MY_AZ is None:
-        if options.debug:
+        if OPTIONS_FROM_CONFIG_FILE.debug:
             MY_AZ = 'us-east-1a'
         else:
             MY_AZ = meta_data("placement/availability-zone")
@@ -108,22 +110,22 @@ def meta_data(data_path):
 
 
 def get_coreo_key():
-    content = open("%s/git_key.out" % options.work_dir, 'r').read()
+    content = open("%s/git_key.out" % OPTIONS_FROM_CONFIG_FILE.work_dir, 'r').read()
     return json.loads(content)
 
 
 def get_coreo_appstack():
-    content = open("%s/appstack.out" % options.work_dir, 'r').read()
+    content = open("%s/appstack.out" % OPTIONS_FROM_CONFIG_FILE.work_dir, 'r').read()
     return json.loads(content)
 
 
 def get_coreo_appstackinstance_config():
-    content = open("%s/appstack_instance_config.out" % options.work_dir, 'r').read()
+    content = open("%s/appstack_instance_config.out" % OPTIONS_FROM_CONFIG_FILE.work_dir, 'r').read()
     return json.loads(content)
 
 
 def get_coreo_appstackinstance():
-    content = open("%s/appstack_instance.out" % options.work_dir, 'r').read()
+    content = open("%s/appstack_instance.out" % OPTIONS_FROM_CONFIG_FILE.work_dir, 'r').read()
     return json.loads(content)
 
 
@@ -278,7 +280,7 @@ def set_env(env_list):
         os.environ[key] = str(val).strip().strip('"')
 
     # the order matters here - the env.out has to be last
-    with open("%s/env.out" % options.work_dir) as f:
+    with open("%s/env.out" % OPTIONS_FROM_CONFIG_FILE.work_dir) as f:
         for line in f:
             values = line.split('=')
             if len(values) == 2:
@@ -289,7 +291,7 @@ def set_env(env_list):
 def run_cmd(work_dir, *args):
     print("cwd=%s" % work_dir)
     print("running command: %s" % str(list(args)))
-    with open(options.log_file, 'a') as log_file:
+    with open(OPTIONS_FROM_CONFIG_FILE.log_file, 'a') as log_file:
         proc_ret_code = subprocess.call(list(args),
                                         cwd=work_dir,
                                         shell=False,
@@ -334,7 +336,7 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
             # we need to check the error and output if we are debugging or not
             err = None
             out = None
-            if not options.debug:
+            if not OPTIONS_FROM_CONFIG_FILE.debug:
                 err = run_cmd(os.path.dirname(full_path), "./%s" % os.path.basename(full_path))
             if not err:
                 with open(LOCK_FILE_PATH, 'a') as lockFile:
@@ -358,12 +360,17 @@ def bootstrap():
     key = get_coreo_key()
     #  Coreo::GIT.clone_for_asi("#{DaemonKit.arguments.options[:asi_id]}", asi['branch'], asi['revision'],
     # asi['gitUrl'], asi['keyMaterial'], "#{DaemonKit.arguments.options[:work_dir]}")
-    clone_for_asi(asi['branch'], asi['revision'], appstack['gitUrl'], key['keyMaterial'], options.work_dir)
+    clone_for_asi(asi['branch'], asi['revision'], appstack['gitUrl'], key['keyMaterial'], OPTIONS_FROM_CONFIG_FILE.work_dir)
     #  run_all_boot_scripts("#{DaemonKit.arguments.options[:work_dir]}", "#{DaemonKit.arguments.options[:server_name]}")
-    run_all_boot_scripts(options.work_dir, options.serverName)
+    run_all_boot_scripts(OPTIONS_FROM_CONFIG_FILE.work_dir, OPTIONS_FROM_CONFIG_FILE.serverName)
 
 
-options = get_configs('test.yaml')
+parser = argparse.ArgumentParser(description='Get config file path')
+parser.add_argument('--config', help="Set config file location")
+CONFIG_FILE_LOCATION_FROM_CONSOLE = parser.parse_args().config
+CONFIG_FILE_LOCATION = CONFIG_FILE_LOCATION_FROM_CONSOLE or DEFAULT_CONFIG_FILE_LOCATION
+
+OPTIONS_FROM_CONFIG_FILE = get_configs(CONFIG_FILE_LOCATION)
 
 # globals for caching
 MY_AZ = None
@@ -372,9 +379,9 @@ COMPLETE_STRING = "COREO::BOOTSTRAP::complete"
 
 # lets set up a lock file so we don't rerun on bootstrap... this will
 # also allow people to remove the lock file to rerun everything
-LOCK_FILE_PATH = "%s/bootstrap.lock" % options.work_dir
+LOCK_FILE_PATH = "%s/bootstrap.lock" % OPTIONS_FROM_CONFIG_FILE.work_dir
 
-if options.version:
+if OPTIONS_FROM_CONFIG_FILE.version:
     print "%s" % version
     sys.exit(0)
 
@@ -398,35 +405,40 @@ def get_last_commit_hash_on_remote():
 
 while True:
     try:
-        if not os.path.isfile(LOCK_FILE_PATH):
-            # touch the bootstrap lock file to indicate we have started to run through it
-            with open(LOCK_FILE_PATH, 'a'):
-                os.utime(LOCK_FILE_PATH, None)
-        if COMPLETE_STRING not in open(LOCK_FILE_PATH, 'r').read():
-            bootstrap()
-        sqs_messages = get_sqs_messages(options.queue_url)
-        if not sqs_messages:
+        # if not os.path.isfile(LOCK_FILE_PATH):
+        #     # touch the bootstrap lock file to indicate we have started to run through it
+        #     with open(LOCK_FILE_PATH, 'a'):
+        #         os.utime(LOCK_FILE_PATH, None)
+        # if COMPLETE_STRING not in open(LOCK_FILE_PATH, 'r').read():
+        #     bootstrap()
+        sqs_response = get_sqs_messages(OPTIONS_FROM_CONFIG_FILE.queue_url)
+        if not sqs_response:
             raise ValueError("Error while getting SQS messages.")
 
+        sqs_messages = sqs_response[u'Messages']
         if len(sqs_messages):
             os.environ['AWS_ACCESS_KEY_ID'] = ''
-            os.environ['AWS_SECRED_ACCESS_KEY'] = ''
-            raw_message = sqs_messages[0]
-            message = json.loads(raw_message.get_body())
+            os.environ['AWS_SECRET_ACCESS_KEY'] = ''
+            first_sqs_message = sqs_messages[0]
+            message = json.loads(first_sqs_message[u'Body'])
             message_type = message['type']
             if message_type.lower() == 'runcommand':
                 try:
                     script = message['payload']
-                    if not options.debug:
+                    if not OPTIONS_FROM_CONFIG_FILE.debug:
                         os.chmod(script, stat.S_IEXEC)
                         os.system(script)
                 except Exception as ex:
                     log("exception: %s" % str(ex))
             else:
                 log("unknown message type")
-                # sqs_messages.delete_message(message)
+                SQS_CLIENT.delete_message(
+                    QueueUrl=OPTIONS_FROM_CONFIG_FILE.queue_url,
+                    ReceiptHandle=first_sqs_message['ReceiptHandle']
+                )
     except Exception as ex:
         log("Exception caught: [%s]" % str(ex))
         log(traceback.format_exc())
-        if options.debug:
+        if OPTIONS_FROM_CONFIG_FILE.debug:
             sys.exit(1)
+# TODO may be we need to add some time.sleep before restarting a loop?
