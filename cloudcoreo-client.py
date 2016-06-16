@@ -12,11 +12,9 @@
 ######################################################################
 import time
 import boto3
-import datetime
 import json
 import logging
 import string
-import subprocess
 import traceback
 import unicodedata
 import subprocess
@@ -36,11 +34,15 @@ logging.basicConfig()
 SQS_CLIENT = boto3.client('sqs')
 SNS_CLIENT = boto3.client('sns')
 DEFAULT_CONFIG_FILE_LOCATION = '/etc/cloudcoreo/agent.conf'
+dt = time.time()
+LOGS = [{'text': 'test', 'date': dt},
+        {'text': 'test1', 'date': dt}]
 
 
-def publish_to_sns(message_text, topic_arn):
+def publish_to_sns(message_text, subject, topic_arn):
     sns_response = SNS_CLIENT.publish(
         TopicArn=topic_arn,
+        Subject=subject,
         Message=message_text
     )
     return sns_response
@@ -62,28 +64,10 @@ def get_configs(path):
     return DotDict(configs)
 
 
-def log(statement):
-    statement = str(statement)
-    if OPTIONS_FROM_CONFIG_FILE.log_file is None:
-        return
-    if not os.path.exists(os.path.dirname(OPTIONS_FROM_CONFIG_FILE.log_file)):
-        os.makedirs(os.path.dirname(OPTIONS_FROM_CONFIG_FILE.log_file))
-    log_file = open(OPTIONS_FROM_CONFIG_FILE.log_file, 'a')
-    ts = datetime.datetime.now()
-    is_first = True
-    for line in statement.split("\n"):
-        if is_first:
-            if OPTIONS_FROM_CONFIG_FILE.debug:
-                print("%s - %s\n" % (ts, line))
-            else:
-                log_file.write("%s - %s\n" % (ts, line))
-            is_first = False
-        else:
-            if OPTIONS_FROM_CONFIG_FILE.debug:
-                print("%s -    %s\n" % (ts, line))
-            else:
-                log_file.write("%s -    %s\n" % (ts, line))
-    log_file.close()
+def log(log_text):
+    log_text = str(log_text)
+    log_dict = {'text': log_text, 'date': time.time()}
+    LOGS.append(log_dict)
 
 
 def get_availability_zone():
@@ -360,7 +344,8 @@ def bootstrap():
     key = get_coreo_key()
     #  Coreo::GIT.clone_for_asi("#{DaemonKit.arguments.options[:asi_id]}", asi['branch'], asi['revision'],
     # asi['gitUrl'], asi['keyMaterial'], "#{DaemonKit.arguments.options[:work_dir]}")
-    clone_for_asi(asi['branch'], asi['revision'], appstack['gitUrl'], key['keyMaterial'], OPTIONS_FROM_CONFIG_FILE.work_dir)
+    clone_for_asi(asi['branch'], asi['revision'], appstack['gitUrl'], key['keyMaterial'],
+                  OPTIONS_FROM_CONFIG_FILE.work_dir)
     #  run_all_boot_scripts("#{DaemonKit.arguments.options[:work_dir]}", "#{DaemonKit.arguments.options[:server_name]}")
     run_all_boot_scripts(OPTIONS_FROM_CONFIG_FILE.work_dir, OPTIONS_FROM_CONFIG_FILE.serverName)
 
@@ -414,28 +399,38 @@ while True:
         sqs_response = get_sqs_messages(OPTIONS_FROM_CONFIG_FILE.queue_url)
         if not sqs_response:
             raise ValueError("Error while getting SQS messages.")
-
-        sqs_messages = sqs_response[u'Messages']
-        if len(sqs_messages):
-            os.environ['AWS_ACCESS_KEY_ID'] = ''
-            os.environ['AWS_SECRET_ACCESS_KEY'] = ''
-            first_sqs_message = sqs_messages[0]
-            message = json.loads(first_sqs_message[u'Body'])
-            message_type = message['type']
-            if message_type.lower() == 'runcommand':
-                try:
-                    script = message['payload']
-                    if not OPTIONS_FROM_CONFIG_FILE.debug:
-                        os.chmod(script, stat.S_IEXEC)
-                        os.system(script)
-                except Exception as ex:
-                    log("exception: %s" % str(ex))
-            else:
-                log("unknown message type")
-                SQS_CLIENT.delete_message(
-                    QueueUrl=OPTIONS_FROM_CONFIG_FILE.queue_url,
-                    ReceiptHandle=first_sqs_message['ReceiptHandle']
-                )
+        if u'Messages' in sqs_response:
+            sqs_messages = sqs_response[u'Messages']
+            if len(sqs_messages):
+                os.environ['AWS_ACCESS_KEY_ID'] = ''
+                os.environ['AWS_SECRET_ACCESS_KEY'] = ''
+                first_sqs_message = sqs_messages[0]
+                message = json.loads(first_sqs_message[u'Body'])
+                message_type = message['type']
+                if message_type.lower() == 'runcommand':
+                    try:
+                        script = message['payload']
+                        if not OPTIONS_FROM_CONFIG_FILE.debug:
+                            os.chmod(script, stat.S_IEXEC)
+                            os.system(script)
+                    except Exception as ex:
+                        log("exception: %s" % str(ex))
+                else:
+                    log("unknown message type")
+                    SQS_CLIENT.delete_message(
+                        QueueUrl=OPTIONS_FROM_CONFIG_FILE.queue_url,
+                        ReceiptHandle=first_sqs_message['ReceiptHandle']
+                    )
+        if len(LOGS):
+            JSON = {
+                "body": LOGS
+            }
+            stringified_json = json.dumps(JSON)
+            try:
+                publish_to_sns(stringified_json, 'LOGS', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+                del LOGS[:]
+            except Exception as ex:
+                log(ex)
     except Exception as ex:
         log("Exception caught: [%s]" % str(ex))
         log(traceback.format_exc())
