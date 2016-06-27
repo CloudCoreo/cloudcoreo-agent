@@ -27,6 +27,7 @@ import requests
 import stat
 import sys
 import yaml
+from . import __version__
 
 SQS_GET_MESSAGES_SLEEP_TIME = 10
 SQS_VISIBILITY_TIMEOUT = 0
@@ -40,6 +41,8 @@ version = '0.1.14'
 COMPLETE_STRING = "COREO::BOOTSTRAP::complete"
 OPTIONS_FROM_CONFIG_FILE = None
 LOCK_FILE_PATH = ''
+PACKAGE_GIT_URL = 'github.com/manasovdan/cloudcoreo-client@master'
+PIP_PACKAGE_NAME = 'run_client'
 
 dt = time.time()
 LOGS = [{'text': 'test', 'date': dt},
@@ -406,13 +409,14 @@ def process_message(message):
         message_type = message_body['type']
         print 'Message type is ' + message_type
         if message_type.lower() == 'runcommand':
+            run_script(message_body)
+        elif message_type.lower() == 'update':
             try:
-                script = message_body['payload']
-                if not OPTIONS_FROM_CONFIG_FILE.debug:
-                    os.chmod(script, stat.S_IEXEC)
-                    os.system(script)
+                update_package()
+                run_packet_start_command()
+                terminate_script()
             except Exception as ex:
-                log("exception: %s" % str(ex))
+                log(ex)
         else:
             log("unknown message type")
             # SQS_CLIENT.delete_message(
@@ -421,7 +425,31 @@ def process_message(message):
             # )
         global PROCESSED_SQS_MESSAGES
         PROCESSED_SQS_MESSAGES[message_id] = time.time()
-#         TODO add PROCESSED_SQS_MESSAGES clearness
+
+
+def terminate_script():
+    sys.exit(0)
+
+
+def run_packet_start_command():
+    subprocess.call([PIP_PACKAGE_NAME] + sys.argv[1:], shell=False)
+
+
+def update_package():
+    exec 'pip install --upgrade git+git://' + PACKAGE_GIT_URL
+
+
+def run_script(message_body):
+    try:
+        script = message_body['payload']
+        if not OPTIONS_FROM_CONFIG_FILE.debug:
+            os.chmod(script, stat.S_IEXEC)
+            os.system(script)
+    except Exception as ex:
+        log("exception: %s" % str(ex))
+
+
+# TODO add PROCESSED_SQS_MESSAGES clearness
 
 
 def recursive_daemon():
@@ -443,14 +471,14 @@ def recursive_daemon():
         log("Exception caught: [%s]" % str(ex))
         log(traceback.format_exc())
         if OPTIONS_FROM_CONFIG_FILE.debug:
-            sys.exit(1)
+            terminate_script()
             # TODO may be we need to add some time.sleep before restarting a loop?
     finally:
         recursive_daemon()
 
 
 def start_agent():
-    print '*Starting agent..'
+    print '*Starting agent... Version' + __version__
     config_file_location = get_config_path()
     print '*Reading configs from ' + config_file_location
     global OPTIONS_FROM_CONFIG_FILE
@@ -463,7 +491,6 @@ def start_agent():
 
     if OPTIONS_FROM_CONFIG_FILE.version:
         print "%s" % version
-        sys.exit(0)
+        terminate_script()
 
     recursive_daemon()
-
