@@ -43,18 +43,28 @@ OPTIONS_FROM_CONFIG_FILE = None
 LOCK_FILE_PATH = ''
 PACKAGE_GIT_URL = 'github.com/manasovdan/cloudcoreo-client@master'
 PIP_PACKAGE_NAME = 'run_client'
-PROCESSED_SQS_MESSAGES_DICT_PATH = os.path.dirname(os.path.abspath(__file__)) + '/processed-messages.txt'
-
-
-def read_processed_messages_from_file():
-    return eval(open(PROCESSED_SQS_MESSAGES_DICT_PATH, 'r').read())
-
-
-PROCESSED_SQS_MESSAGES = read_processed_messages_from_file()
-
+PROCESSED_SQS_MESSAGES_DICT_PATH = '/tmp/processed-messages.txt'
 dt = time.time()
 LOGS = [{'text': 'test', 'date': dt},
         {'text': 'test1', 'date': dt}]
+
+
+def log(log_text):
+    log_text = str(log_text)
+    print log_text
+    log_dict = {'text': log_text, 'date': time.time()}
+    LOGS.append(log_dict)
+
+
+def read_processed_messages_from_file():
+    try:
+        return eval(open(PROCESSED_SQS_MESSAGES_DICT_PATH, 'w+').read())
+    except Exception as ex:
+        log(ex)
+        return {}
+
+
+PROCESSED_SQS_MESSAGES = read_processed_messages_from_file()
 
 
 def publish_to_sns(message_text, subject, topic_arn):
@@ -98,12 +108,6 @@ def get_configs(path):
         configs = yaml.load(ymlfile)
     return DotDict(configs)
 
-
-def log(log_text):
-    log_text = str(log_text)
-    print log_text
-    log_dict = {'text': log_text, 'date': time.time()}
-    LOGS.append(log_dict)
 
 
 def get_availability_zone():

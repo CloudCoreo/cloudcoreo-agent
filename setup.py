@@ -13,6 +13,7 @@ setup(
         'console_scripts':
             ['run_client = core.cloudcoreo_client:start_agent']
     },
+    include_package_data=True,
     install_requires=[
         'boto3==1.3.1',
         'requests==2.3.0',
