@@ -43,7 +43,7 @@ OPTIONS_FROM_CONFIG_FILE = None
 LOCK_FILE_PATH = ''
 PACKAGE_GIT_URL = 'github.com/manasovdan/cloudcoreo-client@master'
 PIP_PACKAGE_NAME = 'run_client'
-PROCESSED_SQS_MESSAGES_DICT_PATH = os.path.dirname(os.path.abspath(__file__)) + 'processed-messages.txt'
+PROCESSED_SQS_MESSAGES_DICT_PATH = os.path.dirname(os.path.abspath(__file__)) + '/processed-messages.txt'
 
 
 def read_processed_messages_from_file():
