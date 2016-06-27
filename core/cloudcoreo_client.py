@@ -27,7 +27,7 @@ import requests
 import stat
 import sys
 import yaml
-from . import __version__
+from core import __version__
 
 SQS_GET_MESSAGES_SLEEP_TIME = 10
 SQS_VISIBILITY_TIMEOUT = 0
@@ -410,7 +410,7 @@ def process_message(message):
         print 'Message type is ' + message_type
         if message_type.lower() == 'runcommand':
             run_script(message_body)
-        elif message_type.lower() == 'update':
+        elif message_type.lower() == u'update':
             try:
                 update_package()
                 run_packet_start_command()
@@ -418,12 +418,11 @@ def process_message(message):
             except Exception as ex:
                 log(ex)
         else:
-            log("unknown message type")
+            log("unknown message type" + message_type)
             # SQS_CLIENT.delete_message(
             #     QueueUrl=OPTIONS_FROM_CONFIG_FILE.queue_url,
             #     ReceiptHandle=first_sqs_message['ReceiptHandle']
             # )
-        global PROCESSED_SQS_MESSAGES
         PROCESSED_SQS_MESSAGES[message_id] = time.time()
 
 
@@ -436,7 +435,7 @@ def run_packet_start_command():
 
 
 def update_package():
-    exec 'pip install --upgrade git+git://' + PACKAGE_GIT_URL
+    subprocess.call(['pip', 'install', '--upgrade', 'git+git://' + PACKAGE_GIT_URL])
 
 
 def run_script(message_body):
@@ -494,3 +493,6 @@ def start_agent():
         terminate_script()
 
     recursive_daemon()
+
+
+start_agent()
