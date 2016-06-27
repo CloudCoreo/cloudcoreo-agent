@@ -66,6 +66,7 @@ def read_processed_messages_from_file():
 
 
 PROCESSED_SQS_MESSAGES = read_processed_messages_from_file()
+print PROCESSED_SQS_MESSAGES
 
 
 def publish_to_sns(message_text, subject, topic_arn):
@@ -108,7 +109,6 @@ def get_configs(path):
     with open(path, 'r') as ymlfile:
         configs = yaml.load(ymlfile)
     return DotDict(configs)
-
 
 
 def get_availability_zone():
@@ -425,6 +425,7 @@ def process_message(message):
             run_script(message_body)
         elif message_type.lower() == u'update':
             try:
+                print 'writing into file', PROCESSED_SQS_MESSAGES
                 open(PROCESSED_SQS_MESSAGES_DICT_PATH, 'a').write(str(PROCESSED_SQS_MESSAGES))
                 update_package()
                 run_packet_start_command()
