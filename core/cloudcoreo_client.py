@@ -415,6 +415,7 @@ def process_incoming_sqs_messages(sqs_response):
 def process_message(message):
     message_id = message[u'MessageId']
     if message_id not in PROCESSED_SQS_MESSAGES:
+        PROCESSED_SQS_MESSAGES[message_id] = time.time()
         message_body = json.loads(message[u'Body'])
         print 'Got message via SQS'
         message_type = message_body['type']
@@ -435,7 +436,6 @@ def process_message(message):
             #     QueueUrl=OPTIONS_FROM_CONFIG_FILE.queue_url,
             #     ReceiptHandle=first_sqs_message['ReceiptHandle']
             # )
-        PROCESSED_SQS_MESSAGES[message_id] = time.time()
 
 
 def terminate_script():
