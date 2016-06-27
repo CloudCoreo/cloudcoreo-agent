@@ -478,7 +478,7 @@ def recursive_daemon():
 
 
 def start_agent():
-    print '*Starting agent... Version' + __version__
+    print '*Starting agent... Version ' + __version__
     config_file_location = get_config_path()
     print '*Reading configs from ' + config_file_location
     global OPTIONS_FROM_CONFIG_FILE
