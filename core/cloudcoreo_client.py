@@ -57,6 +57,7 @@ def log(log_text):
 
 
 def read_processed_messages_from_file():
+    print PROCESSED_SQS_MESSAGES_DICT_PATH
     try:
         return eval(open(PROCESSED_SQS_MESSAGES_DICT_PATH, 'w+').read())
     except Exception as ex:
