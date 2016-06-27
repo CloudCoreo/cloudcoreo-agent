@@ -59,7 +59,7 @@ def log(log_text):
 def read_processed_messages_from_file():
     print PROCESSED_SQS_MESSAGES_DICT_PATH
     try:
-        return eval(open(PROCESSED_SQS_MESSAGES_DICT_PATH, 'w+').read())
+        return eval(open(PROCESSED_SQS_MESSAGES_DICT_PATH, 'r').read())
     except Exception as ex:
         log(ex)
         return {}
@@ -425,8 +425,8 @@ def process_message(message):
             run_script(message_body)
         elif message_type.lower() == u'update':
             try:
-                print 'writing into file', PROCESSED_SQS_MESSAGES
-                open(PROCESSED_SQS_MESSAGES_DICT_PATH, 'a').write(str(PROCESSED_SQS_MESSAGES))
+                print 'writing into file', PROCESSED_SQS_MESSAGES_DICT_PATH, PROCESSED_SQS_MESSAGES
+                open(PROCESSED_SQS_MESSAGES_DICT_PATH, 'w+').write(str(PROCESSED_SQS_MESSAGES))
                 update_package()
                 run_packet_start_command()
                 terminate_script()
