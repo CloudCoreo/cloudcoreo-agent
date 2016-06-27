@@ -3,7 +3,7 @@
 # Cloudcoreo client
 #   example of a debug run:
 #       work_dir=/tmp/53d6375b01f98c8230f72e83 ;set | grep -v -e " " -e IFS -e SHELLOPTS -e rvm -e RVM >
-# "$work_dir/env.out"; rm -rf $work_dir/5* ;python cloudcoreo-client.py --debug --access-key-id <your access key id>
+# "$work_dir/env.out"; rm -rf $work_dir/5* ;python core.py --debug --access-key-id <your access key id>
 # --secret-access-key <your secret access key>
 # --queue-url https://sqs.us-east-1.amazonaws.com/910887748405/coreo-asi-<asi-id>-i-db404ff1 --work-dir $work_dir
 # --cloudcoreo-secret-key "<cloudcoreo secret key>" --cloudcoreo-url http://localhost:3000
@@ -34,9 +34,17 @@ logging.basicConfig()
 SQS_CLIENT = boto3.client('sqs')
 SNS_CLIENT = boto3.client('sns')
 DEFAULT_CONFIG_FILE_LOCATION = '/etc/cloudcoreo/agent.conf'
+# globals for caching
+MY_AZ = None
+version = '0.1.14'
+COMPLETE_STRING = "COREO::BOOTSTRAP::complete"
+OPTIONS_FROM_CONFIG_FILE = None
+LOCK_FILE_PATH = ''
+
 dt = time.time()
 LOGS = [{'text': 'test', 'date': dt},
         {'text': 'test1', 'date': dt}]
+PROCESSED_SQS_MESSAGES = {}
 
 
 def publish_to_sns(message_text, subject, topic_arn):
@@ -46,6 +54,15 @@ def publish_to_sns(message_text, subject, topic_arn):
         Message=message_text
     )
     return sns_response
+
+
+def get_sqs_messages(queue_url):
+    response = SQS_CLIENT.receive_message(
+        QueueUrl=queue_url,
+        VisibilityTimeout=SQS_VISIBILITY_TIMEOUT,
+        WaitTimeSeconds=20
+    )
+    return response
 
 
 class DotDict(dict):
@@ -58,6 +75,14 @@ class DotDict(dict):
     __delattr__ = dict.__delitem__
 
 
+def get_config_path():
+    parser = argparse.ArgumentParser(description='Get config file path')
+    parser.add_argument('--config', help="Set config file location")
+    config_file_location_from_console = parser.parse_args().config
+    config_file_location = config_file_location_from_console or DEFAULT_CONFIG_FILE_LOCATION
+    return config_file_location
+
+
 def get_configs(path):
     with open(path, 'r') as ymlfile:
         configs = yaml.load(ymlfile)
@@ -66,6 +91,7 @@ def get_configs(path):
 
 def log(log_text):
     log_text = str(log_text)
+    print log_text
     log_dict = {'text': log_text, 'date': time.time()}
     LOGS.append(log_dict)
 
@@ -283,7 +309,7 @@ def run_cmd(work_dir, *args):
                                         stderr=log_file)
 
     if proc_ret_code == 0:
-        ## return the return code
+        # return the return code
         log("Success running script [%s]" % list(args))
         log("  returning rc [%d]" % proc_ret_code)
         return None
@@ -292,9 +318,9 @@ def run_cmd(work_dir, *args):
 
 
 def run_all_boot_scripts(repo_dir, server_name_dir):
-    env = {}
+    # env = {}
     env = get_environment_dict()
-    script_order_files = []
+    # script_order_files = []
     script_order_files = get_script_order_files(repo_dir, server_name_dir)
     log("setting env [%s]" % env)
 
@@ -350,45 +376,55 @@ def bootstrap():
     run_all_boot_scripts(OPTIONS_FROM_CONFIG_FILE.work_dir, OPTIONS_FROM_CONFIG_FILE.serverName)
 
 
-parser = argparse.ArgumentParser(description='Get config file path')
-parser.add_argument('--config', help="Set config file location")
-CONFIG_FILE_LOCATION_FROM_CONSOLE = parser.parse_args().config
-CONFIG_FILE_LOCATION = CONFIG_FILE_LOCATION_FROM_CONSOLE or DEFAULT_CONFIG_FILE_LOCATION
-
-OPTIONS_FROM_CONFIG_FILE = get_configs(CONFIG_FILE_LOCATION)
-
-# globals for caching
-MY_AZ = None
-version = '0.1.14'
-COMPLETE_STRING = "COREO::BOOTSTRAP::complete"
-
-# lets set up a lock file so we don't rerun on bootstrap... this will
-# also allow people to remove the lock file to rerun everything
-LOCK_FILE_PATH = "%s/bootstrap.lock" % OPTIONS_FROM_CONFIG_FILE.work_dir
-
-if OPTIONS_FROM_CONFIG_FILE.version:
-    print "%s" % version
-    sys.exit(0)
+def send_logs_to_webapp():
+    message_with_logs_for_webapp = {
+        "body": LOGS
+    }
+    stringified_json = json.dumps(message_with_logs_for_webapp)
+    try:
+        publish_to_sns(stringified_json, 'LOGS', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+        del LOGS[:]
+    except Exception as ex:
+        log(ex)
 
 
-def get_sqs_messages(queue_url):
-    response = SQS_CLIENT.receive_message(
-        QueueUrl=queue_url,
-        VisibilityTimeout=SQS_VISIBILITY_TIMEOUT,
-        WaitTimeSeconds=20
-    )
-    return response
+def process_incoming_sqs_messages(sqs_response):
+    sqs_messages = sqs_response[u'Messages']
+    if len(sqs_messages):
+        # TODO investigate how does it work
+        os.environ['AWS_ACCESS_KEY_ID'] = ''
+        os.environ['AWS_SECRET_ACCESS_KEY'] = ''
+        for message in sqs_messages:
+            process_message(message)
 
 
-def get_last_commit_hash_local():
-    return subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
+def process_message(message):
+    message_id = message[u'MessageId']
+    if message_id not in PROCESSED_SQS_MESSAGES:
+        message_body = json.loads(message[u'Body'])
+        print 'Got message via SQS'
+        message_type = message_body['type']
+        print 'Message type is ' + message_type
+        if message_type.lower() == 'runcommand':
+            try:
+                script = message_body['payload']
+                if not OPTIONS_FROM_CONFIG_FILE.debug:
+                    os.chmod(script, stat.S_IEXEC)
+                    os.system(script)
+            except Exception as ex:
+                log("exception: %s" % str(ex))
+        else:
+            log("unknown message type")
+            # SQS_CLIENT.delete_message(
+            #     QueueUrl=OPTIONS_FROM_CONFIG_FILE.queue_url,
+            #     ReceiptHandle=first_sqs_message['ReceiptHandle']
+            # )
+        global PROCESSED_SQS_MESSAGES
+        PROCESSED_SQS_MESSAGES[message_id] = time.time()
+#         TODO add PROCESSED_SQS_MESSAGES clearness
 
 
-def get_last_commit_hash_on_remote():
-    return subprocess.check_output(['git', 'rev-parse', 'origin/master']).strip()
-
-
-while True:
+def recursive_daemon():
     try:
         # if not os.path.isfile(LOCK_FILE_PATH):
         #     # touch the bootstrap lock file to indicate we have started to run through it
@@ -400,40 +436,34 @@ while True:
         if not sqs_response:
             raise ValueError("Error while getting SQS messages.")
         if u'Messages' in sqs_response:
-            sqs_messages = sqs_response[u'Messages']
-            if len(sqs_messages):
-                os.environ['AWS_ACCESS_KEY_ID'] = ''
-                os.environ['AWS_SECRET_ACCESS_KEY'] = ''
-                first_sqs_message = sqs_messages[0]
-                message = json.loads(first_sqs_message[u'Body'])
-                message_type = message['type']
-                if message_type.lower() == 'runcommand':
-                    try:
-                        script = message['payload']
-                        if not OPTIONS_FROM_CONFIG_FILE.debug:
-                            os.chmod(script, stat.S_IEXEC)
-                            os.system(script)
-                    except Exception as ex:
-                        log("exception: %s" % str(ex))
-                else:
-                    log("unknown message type")
-                    SQS_CLIENT.delete_message(
-                        QueueUrl=OPTIONS_FROM_CONFIG_FILE.queue_url,
-                        ReceiptHandle=first_sqs_message['ReceiptHandle']
-                    )
+            process_incoming_sqs_messages(sqs_response)
         if len(LOGS):
-            JSON = {
-                "body": LOGS
-            }
-            stringified_json = json.dumps(JSON)
-            try:
-                publish_to_sns(stringified_json, 'LOGS', OPTIONS_FROM_CONFIG_FILE.topic_arn)
-                del LOGS[:]
-            except Exception as ex:
-                log(ex)
+            send_logs_to_webapp()
     except Exception as ex:
         log("Exception caught: [%s]" % str(ex))
         log(traceback.format_exc())
         if OPTIONS_FROM_CONFIG_FILE.debug:
             sys.exit(1)
-# TODO may be we need to add some time.sleep before restarting a loop?
+            # TODO may be we need to add some time.sleep before restarting a loop?
+    finally:
+        recursive_daemon()
+
+
+def start_agent():
+    print '*Starting agent..'
+    config_file_location = get_config_path()
+    print '*Reading configs from ' + config_file_location
+    global OPTIONS_FROM_CONFIG_FILE
+    OPTIONS_FROM_CONFIG_FILE = get_configs(config_file_location)
+
+    # lets set up a lock file so we don't rerun on bootstrap... this will
+    # also allow people to remove the lock file to rerun everything
+    global LOCK_FILE_PATH
+    LOCK_FILE_PATH = "%s/bootstrap.lock" % OPTIONS_FROM_CONFIG_FILE.work_dir
+
+    if OPTIONS_FROM_CONFIG_FILE.version:
+        print "%s" % version
+        sys.exit(0)
+
+    recursive_daemon()
+
