@@ -425,7 +425,6 @@ def process_message(message):
             run_script(message_body)
         elif message_type.lower() == u'update':
             try:
-                print 'writing into file', PROCESSED_SQS_MESSAGES_DICT_PATH, PROCESSED_SQS_MESSAGES
                 open(PROCESSED_SQS_MESSAGES_DICT_PATH, 'w+').write(str(PROCESSED_SQS_MESSAGES))
                 update_package()
                 run_packet_start_command()
