@@ -36,7 +36,7 @@ SNS_CLIENT = boto3.client('sns')
 DEFAULT_CONFIG_FILE_LOCATION = '/etc/cloudcoreo/agent.conf'
 # globals for caching
 MY_AZ = None
-version = '0.1.14'
+version = '0.1.15'
 COMPLETE_STRING = "COREO::BOOTSTRAP::complete"
 OPTIONS_FROM_CONFIG_FILE = None
 LOCK_FILE_PATH = ''
