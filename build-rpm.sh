@@ -3,8 +3,8 @@ set -eu
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 dir_name=${PWD##*/}
-package="cloudcoreo-client"
-file="${package}.py"
+package="cloudcoreo-agent"
+file="core/${package}.py"
 tar_file="${package}.tar.gz"
 env="dev"
 
