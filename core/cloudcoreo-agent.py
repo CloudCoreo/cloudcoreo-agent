@@ -27,7 +27,6 @@ import requests
 import stat
 import sys
 import yaml
-from core import __version__
 
 SQS_GET_MESSAGES_SLEEP_TIME = 10
 SQS_VISIBILITY_TIMEOUT = 0
@@ -63,10 +62,6 @@ def read_processed_messages_from_file():
     except Exception as ex:
         log(ex)
         return {}
-
-
-PROCESSED_SQS_MESSAGES = read_processed_messages_from_file()
-print PROCESSED_SQS_MESSAGES
 
 
 def publish_to_sns(message_text, subject, topic_arn):
@@ -490,7 +485,7 @@ def recursive_daemon():
 
 
 def start_agent():
-    print '*Starting agent... Version ' + __version__
+    print '*Starting agent... Version ' + version
     config_file_location = get_config_path()
     print '*Reading configs from ' + config_file_location
     global OPTIONS_FROM_CONFIG_FILE
@@ -512,5 +507,8 @@ parser.add_argument('--version', action='store_true', help="Get script version")
 if parser.parse_args().version:
     print "%s" % version
     terminate_script()
+
+PROCESSED_SQS_MESSAGES = read_processed_messages_from_file()
+print PROCESSED_SQS_MESSAGES
 
 start_agent()
