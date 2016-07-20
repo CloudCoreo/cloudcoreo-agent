@@ -31,8 +31,6 @@ import yaml
 SQS_GET_MESSAGES_SLEEP_TIME = 10
 SQS_VISIBILITY_TIMEOUT = 0
 logging.basicConfig()
-SQS_CLIENT = boto3.client('sqs')
-SNS_CLIENT = boto3.client('sns')
 DEFAULT_CONFIG_FILE_LOCATION = '/etc/cloudcoreo/agent.conf'
 # globals for caching
 MY_AZ = None
@@ -508,6 +506,8 @@ if parser.parse_args().version:
     print "%s" % version
     terminate_script()
 
+SQS_CLIENT = boto3.client('sqs')
+SNS_CLIENT = boto3.client('sns')
 PROCESSED_SQS_MESSAGES = read_processed_messages_from_file()
 print PROCESSED_SQS_MESSAGES
 
