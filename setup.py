@@ -11,7 +11,7 @@ setup(
     long_description=open(join(dirname(__file__), 'README.txt')).read(),
     entry_points={
         'console_scripts':
-            ['run_agent = core.cloudcoreo-agent:start_agent']
+            ['run_agent = core.cloudcoreo_agent:start_agent']
     },
     include_package_data=True,
     install_requires=[
