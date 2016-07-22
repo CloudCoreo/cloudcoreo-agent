@@ -1,13 +1,6 @@
 #!/usr/bin/env python
 ######################################################################
 # Cloudcoreo client
-#   example of a debug run:
-#       work_dir=/tmp/53d6375b01f98c8230f72e83 ;set | grep -v -e " " -e IFS -e SHELLOPTS -e rvm -e RVM >
-# "$work_dir/env.out"; rm -rf $work_dir/5* ;python core.py --debug --access-key-id <your access key id>
-# --secret-access-key <your secret access key>
-# --queue-url https://sqs.us-east-1.amazonaws.com/910887748405/coreo-asi-<asi-id>-i-db404ff1 --work-dir $work_dir
-# --cloudcoreo-secret-key "<cloudcoreo secret key>" --cloudcoreo-url http://localhost:3000
-# --asi-id "<asi-id>" --server-name server-nat
 #
 ######################################################################
 import time
