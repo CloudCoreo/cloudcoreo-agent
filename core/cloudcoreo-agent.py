@@ -1,13 +1,6 @@
 #!/usr/bin/env python
 ######################################################################
 # Cloudcoreo client
-#   example of a debug run:
-#       work_dir=/tmp/53d6375b01f98c8230f72e83 ;set | grep -v -e " " -e IFS -e SHELLOPTS -e rvm -e RVM >
-# "$work_dir/env.out"; rm -rf $work_dir/5* ;python core.py --debug --access-key-id <your access key id>
-# --secret-access-key <your secret access key>
-# --queue-url https://sqs.us-east-1.amazonaws.com/910887748405/coreo-asi-<asi-id>-i-db404ff1 --work-dir $work_dir
-# --cloudcoreo-secret-key "<cloudcoreo secret key>" --cloudcoreo-url http://localhost:3000
-# --asi-id "<asi-id>" --server-name server-nat
 #
 ######################################################################
 import time
@@ -32,16 +25,13 @@ from core import __version__
 SQS_GET_MESSAGES_SLEEP_TIME = 10
 SQS_VISIBILITY_TIMEOUT = 0
 logging.basicConfig()
-SQS_CLIENT = boto3.client('sqs')
-SNS_CLIENT = boto3.client('sns')
 DEFAULT_CONFIG_FILE_LOCATION = '/etc/cloudcoreo/agent.conf'
 # globals for caching
 MY_AZ = None
-version = '0.1.14'
+version = '0.1.15'
 COMPLETE_STRING = "COREO::BOOTSTRAP::complete"
 OPTIONS_FROM_CONFIG_FILE = None
 LOCK_FILE_PATH = ''
-PACKAGE_GIT_URL = 'github.com/manasovdan/cloudcoreo-client@master'
 PIP_PACKAGE_NAME = 'run_client'
 PROCESSED_SQS_MESSAGES_DICT_PATH = '/tmp/processed-messages.txt'
 dt = time.time()
@@ -63,10 +53,6 @@ def read_processed_messages_from_file():
     except Exception as ex:
         log(ex)
         return {}
-
-
-PROCESSED_SQS_MESSAGES = read_processed_messages_from_file()
-print PROCESSED_SQS_MESSAGES
 
 
 def publish_to_sns(message_text, subject, topic_arn):
@@ -448,7 +434,7 @@ def run_packet_start_command():
 
 
 def update_package():
-    subprocess.call(['pip', 'install', '--upgrade', 'git+git://' + PACKAGE_GIT_URL])
+    subprocess.call(['pip', 'install', '--upgrade', 'git+git://' + OPTIONS_FROM_CONFIG_FILE.agent_git_url])
 
 
 def run_script(message_body):
@@ -505,7 +491,18 @@ def start_agent():
         print "%s" % version
         terminate_script()
 
+    global SQS_CLIENT, SNS_CLIENT
+    SQS_CLIENT = boto3.client('sqs', get_region())
+    SNS_CLIENT = boto3.client('sns', get_region())
+    PROCESSED_SQS_MESSAGES = read_processed_messages_from_file()
+    print PROCESSED_SQS_MESSAGES
+
     recursive_daemon()
 
+parser=argparse.ArgumentParser(description='Parse version argument')
+parser.add_argument('--version', action='store_true', help="Get script version")
+if parser.parse_args().version:
+    print "%s" % version
+    terminate_script()
 
 start_agent()
