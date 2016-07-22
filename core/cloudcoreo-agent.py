@@ -27,6 +27,7 @@ import requests
 import stat
 import sys
 import yaml
+from core import __version__
 
 SQS_GET_MESSAGES_SLEEP_TIME = 10
 SQS_VISIBILITY_TIMEOUT = 0
@@ -483,7 +484,7 @@ def recursive_daemon():
 
 
 def start_agent():
-    print '*Starting agent... Version ' + version
+    print '*Starting agent... Version ' + __version__
     config_file_location = get_config_path()
     print '*Reading configs from ' + config_file_location
     global OPTIONS_FROM_CONFIG_FILE
