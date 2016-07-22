@@ -498,6 +498,12 @@ def start_agent():
         print "%s" % version
         terminate_script()
 
+    global SQS_CLIENT, SNS_CLIENT
+    SQS_CLIENT = boto3.client('sqs', get_region())
+    SNS_CLIENT = boto3.client('sns', get_region())
+    PROCESSED_SQS_MESSAGES = read_processed_messages_from_file()
+    print PROCESSED_SQS_MESSAGES
+
     recursive_daemon()
 
 parser=argparse.ArgumentParser(description='Parse version argument')
@@ -505,10 +511,5 @@ parser.add_argument('--version', action='store_true', help="Get script version")
 if parser.parse_args().version:
     print "%s" % version
     terminate_script()
-
-SQS_CLIENT = boto3.client('sqs')
-SNS_CLIENT = boto3.client('sns')
-PROCESSED_SQS_MESSAGES = read_processed_messages_from_file()
-print PROCESSED_SQS_MESSAGES
 
 start_agent()
