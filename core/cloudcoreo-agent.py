@@ -39,7 +39,6 @@ version = '0.1.15'
 COMPLETE_STRING = "COREO::BOOTSTRAP::complete"
 OPTIONS_FROM_CONFIG_FILE = None
 LOCK_FILE_PATH = ''
-PACKAGE_GIT_URL = 'github.com/manasovdan/cloudcoreo-client@master'
 PIP_PACKAGE_NAME = 'run_client'
 PROCESSED_SQS_MESSAGES_DICT_PATH = '/tmp/processed-messages.txt'
 dt = time.time()
@@ -442,7 +441,7 @@ def run_packet_start_command():
 
 
 def update_package():
-    subprocess.call(['pip', 'install', '--upgrade', 'git+git://' + PACKAGE_GIT_URL])
+    subprocess.call(['pip', 'install', '--upgrade', 'git+git://' + OPTIONS_FROM_CONFIG_FILE.agent_git_url])
 
 
 def run_script(message_body):
