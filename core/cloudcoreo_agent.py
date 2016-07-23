@@ -492,8 +492,20 @@ def start_agent():
         terminate_script()
 
     global SQS_CLIENT, SNS_CLIENT
-    SQS_CLIENT = boto3.client('sqs', get_region())
-    SNS_CLIENT = boto3.client('sns', get_region())
+
+    sqs_sns_region = OPTIONS_FROM_CONFIG_FILE.topic_arn.split(':')[3]
+    log("SQS/SNS region from topic ARN: %s" % sqs_sns_region)
+    aws_access_id = OPTIONS_FROM_CONFIG_FILE.coreo_access_id
+    aws_secret_access_key = OPTIONS_FROM_CONFIG_FILE.coreo_access_key
+    SQS_CLIENT = boto3.client('sqs',
+                              aws_access_key_id='%s' % aws_access_id,
+                              aws_secret_access_key='%s' % aws_secret_access_key,
+                              region_name='%s' % sqs_sns_region)
+    SNS_CLIENT = boto3.client('sns',
+                              aws_access_key_id='%s' % aws_access_id,
+                              aws_secret_access_key='%s' % aws_secret_access_key,
+                              region_name='%s' % sqs_sns_region)
+
     PROCESSED_SQS_MESSAGES = read_processed_messages_from_file()
     print PROCESSED_SQS_MESSAGES
 
