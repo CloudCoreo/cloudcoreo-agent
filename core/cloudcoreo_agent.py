@@ -392,9 +392,6 @@ def send_logs_to_webapp():
 def process_incoming_sqs_messages(sqs_response):
     sqs_messages = sqs_response[u'Messages']
     if len(sqs_messages):
-        # TODO investigate how does it work
-        os.environ['AWS_ACCESS_KEY_ID'] = OPTIONS_FROM_CONFIG_FILE['coreo_access_id']
-        os.environ['AWS_SECRET_ACCESS_KEY'] = OPTIONS_FROM_CONFIG_FILE['coreo_access_key']
         for message in sqs_messages:
             process_message(message)
 
