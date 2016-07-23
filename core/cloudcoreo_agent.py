@@ -392,9 +392,6 @@ def send_logs_to_webapp():
 def process_incoming_sqs_messages(sqs_response):
     sqs_messages = sqs_response[u'Messages']
     if len(sqs_messages):
-        # TODO investigate how does it work
-        os.environ['AWS_ACCESS_KEY_ID'] = OPTIONS_FROM_CONFIG_FILE['coreo_access_id']
-        os.environ['AWS_SECRET_ACCESS_KEY'] = OPTIONS_FROM_CONFIG_FILE['coreo_access_key']
         for message in sqs_messages:
             process_message(message)
 
@@ -492,8 +489,20 @@ def start_agent():
         terminate_script()
 
     global SQS_CLIENT, SNS_CLIENT
-    SQS_CLIENT = boto3.client('sqs', get_region())
-    SNS_CLIENT = boto3.client('sns', get_region())
+
+    sqs_sns_region = OPTIONS_FROM_CONFIG_FILE.topic_arn.split(':')[3]
+    log("SQS/SNS region from topic ARN: %s" % sqs_sns_region)
+    aws_access_id = OPTIONS_FROM_CONFIG_FILE.coreo_access_id
+    aws_secret_access_key = OPTIONS_FROM_CONFIG_FILE.coreo_access_key
+    SQS_CLIENT = boto3.client('sqs',
+                              aws_access_key_id='%s' % aws_access_id,
+                              aws_secret_access_key='%s' % aws_secret_access_key,
+                              region_name='%s' % sqs_sns_region)
+    SNS_CLIENT = boto3.client('sns',
+                              aws_access_key_id='%s' % aws_access_id,
+                              aws_secret_access_key='%s' % aws_secret_access_key,
+                              region_name='%s' % sqs_sns_region)
+
     PROCESSED_SQS_MESSAGES = read_processed_messages_from_file()
     print PROCESSED_SQS_MESSAGES
 
