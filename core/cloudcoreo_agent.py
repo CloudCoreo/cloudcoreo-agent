@@ -15,6 +15,7 @@ import argparse
 from tempfile import mkstemp
 
 import os
+import uuid
 import re
 import requests
 import stat
@@ -91,10 +92,26 @@ def get_config_path():
     return config_file_location
 
 
-def get_configs(path):
+def get_configs():
+    config_file_location = get_config_path()
+    print '*Reading configs from ' + config_file_location
     with open(path, 'r') as ymlfile:
         configs = yaml.load(ymlfile)
     return DotDict(configs)
+
+
+def set_agent_uuid():
+    config_file_location = get_config_path()
+    with open(config_file_location, 'r') as ymlfile:
+        configs = yaml.load(ymlfile)
+
+    # Save agent_uuid to config file
+    with open(config_file_location, 'w') as ymlfile:
+        agent_uuid = uuid.uuid1()
+        configs['agent_uuid'] = agent_uuid
+        ymlfile.write(yaml.dump(configs, default_style="'"))
+        OPTIONS_FROM_CONFIG_FILE = get_configs()
+        log("OPTIONS.agent_uuid: %s" % OPTIONS_FROM_CONFIG_FILE.agent_uuid)
 
 
 def get_availability_zone():
@@ -474,10 +491,8 @@ def recursive_daemon():
 
 def start_agent():
     print '*Starting agent... Version ' + __version__
-    config_file_location = get_config_path()
-    print '*Reading configs from ' + config_file_location
     global OPTIONS_FROM_CONFIG_FILE
-    OPTIONS_FROM_CONFIG_FILE = get_configs(config_file_location)
+    OPTIONS_FROM_CONFIG_FILE = get_configs()
 
     # lets set up a lock file so we don't rerun on bootstrap... this will
     # also allow people to remove the lock file to rerun everything
@@ -487,6 +502,9 @@ def start_agent():
     if OPTIONS_FROM_CONFIG_FILE.version:
         print "%s" % version
         terminate_script()
+
+    if not OPTIONS_FROM_CONFIG_FILE.agent_uuid:
+        set_agent_uuid()
 
     global SQS_CLIENT, SNS_CLIENT
 
