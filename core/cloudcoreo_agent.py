@@ -95,7 +95,7 @@ def get_config_path():
 def get_configs():
     config_file_location = get_config_path()
     print '*Reading configs from ' + config_file_location
-    with open(path, 'r') as ymlfile:
+    with open(config_file_location, 'r') as ymlfile:
         configs = yaml.load(ymlfile)
     return DotDict(configs)
 
@@ -108,10 +108,12 @@ def set_agent_uuid():
     # Save agent_uuid to config file
     with open(config_file_location, 'w') as ymlfile:
         agent_uuid = uuid.uuid1()
-        configs['agent_uuid'] = agent_uuid
+        configs['agent_uuid'] = str(agent_uuid)
         ymlfile.write(yaml.dump(configs, default_style="'"))
-        OPTIONS_FROM_CONFIG_FILE = get_configs()
-        log("OPTIONS.agent_uuid: %s" % OPTIONS_FROM_CONFIG_FILE.agent_uuid)
+
+    global OPTIONS_FROM_CONFIG_FILE
+    OPTIONS_FROM_CONFIG_FILE = get_configs()
+    log("OPTIONS.agent_uuid: %s" % OPTIONS_FROM_CONFIG_FILE.agent_uuid)
 
 
 def get_availability_zone():
