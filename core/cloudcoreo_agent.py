@@ -491,17 +491,17 @@ def recursive_daemon():
 
 def start_agent():
     print '*Starting agent... Version ' + __version__
+
     global OPTIONS_FROM_CONFIG_FILE
     OPTIONS_FROM_CONFIG_FILE = get_configs()
+    if OPTIONS_FROM_CONFIG_FILE.version:
+        print "%s" % version
+        terminate_script()
 
     # lets set up a lock file so we don't rerun on bootstrap... this will
     # also allow people to remove the lock file to rerun everything
     global LOCK_FILE_PATH
     LOCK_FILE_PATH = "%s/bootstrap.lock" % OPTIONS_FROM_CONFIG_FILE.work_dir
-
-    if OPTIONS_FROM_CONFIG_FILE.version:
-        print "%s" % version
-        terminate_script()
 
     if not OPTIONS_FROM_CONFIG_FILE.agent_uuid:
         set_agent_uuid()
