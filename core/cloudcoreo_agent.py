@@ -252,13 +252,12 @@ def git(ssh_wrapper, git_dir, *args):
 
 def get_environment_dict():
     environment = {}
-    default_config = get_default_config()
-    config = get_config()
-    default_vars = json.loads(
-        re.sub('\n', r'', unicodedata.normalize('NFKD', default_config['config']).encode('ascii', 'ignore')))
-    instance_vars = config
-    all_vars = {'variables': default_vars['variables']}
-    all_vars['variables'].update(instance_vars)
+    asi_vars = get_coreo_appstackinstance_config()
+    appstack = get_coreo_appstack()
+    appstack_vars = json.loads(
+        re.sub('\n', r'', unicodedata.normalize('NFKD', appstack['config']).encode('ascii', 'ignore')))
+    all_vars = {'variables': appstack_vars['variables']}
+    all_vars['variables'].update(asi_vars)
     for var in all_vars['variables']:
         value = all_vars['variables'][var]
         # if ! value['value'].nil? then
