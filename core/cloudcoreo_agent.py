@@ -36,14 +36,13 @@ LOCK_FILE_PATH = ''
 PIP_PACKAGE_NAME = 'run_client'
 PROCESSED_SQS_MESSAGES_DICT_PATH = '/tmp/processed-messages.txt'
 dt = time.time()
-LOGS = [{'text': 'test', 'date': dt},
-        {'text': 'test1', 'date': dt}]
+LOGS = []
 MESSAGE_NEXT_NONE = -1
 
 def log(log_text):
     log_text = str(log_text)
     print log_text
-    log_dict = {'text': log_text, 'date': time.time()}
+    log_dict = {'log_message': log_text, 'date': time.time()}
     LOGS.append(log_dict)
 
 
@@ -143,7 +142,7 @@ def create_message(message_type, message, message_id = MESSAGE_NEXT_NONE):
 def publish_agent_online():
     message = create_message("agent_online", "online")
     stringified_json = json.dumps(message)
-    log("uuid message: %s" % stringified_json)
+    print "uuid message: %s" % stringified_json
     if not OPTIONS_FROM_CONFIG_FILE.debug:
         publish_to_sns(stringified_json, 'AGENT_ONLINE', OPTIONS_FROM_CONFIG_FILE.topic_arn)
 
@@ -429,10 +428,9 @@ def bootstrap():
 
 
 def send_logs_to_webapp():
-    message_with_logs_for_webapp = {
-        "body": LOGS
-    }
+    message_with_logs_for_webapp = create_message("script_logs", LOGS)
     stringified_json = json.dumps(message_with_logs_for_webapp)
+    print 'stringified_json: ' + stringified_json
     try:
         publish_to_sns(stringified_json, 'LOGS', OPTIONS_FROM_CONFIG_FILE.topic_arn)
         del LOGS[:]
