@@ -167,8 +167,11 @@ def mkdir_p(path):
 
 
 def clone_for_asi(branch, revision, repo_url, key_material, work_dir):
-    mkdir_p(work_dir)
     gitError = False
+
+    if repo_url.strip() in open(LOCK_FILE_PATH, 'r').read():
+        log("skipping git clone for repo [%s]. Already cloned." % repo_url.strip())
+        return gitError
 
     fd, temp_key_path = mkstemp()
 
@@ -202,6 +205,7 @@ def clone_for_asi(branch, revision, repo_url, key_material, work_dir):
     os.chmod(ssh_wrapper_path, st.st_mode | stat.S_IEXEC)
 
     # now we do the cloning
+    mkdir_p(work_dir)
     log("os.chdir(%s)" % work_dir)
     os.chdir(work_dir)
     log("cloning repo from url: %s" % repo_url.strip())
@@ -236,6 +240,11 @@ def clone_for_asi(branch, revision, repo_url, key_material, work_dir):
     log("removing temporary files for git operations")
     os.remove(temp_key_path)
     os.remove(ssh_wrapper_path)
+
+    # If all git operations succeeded, mark that repo was cloned successfully
+    if not gitError:
+        with open(LOCK_FILE_PATH, 'a') as lockFile:
+            lockFile.write("%s\n" % repo_url.strip())
 
     return gitError
 
