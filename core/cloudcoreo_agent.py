@@ -220,18 +220,6 @@ def clone_for_asi(branch, revision, repo_url, key_material, work_dir):
     log("completed recursive checkout")
 
 
-def get_config():
-    config = get_coreo_appstackinstance_config()
-    log("got config: %s" % config)
-    return config
-
-
-def get_default_config():
-    config = get_coreo_appstack()
-    log("got appstack: %s" % config)
-    return config
-
-
 def git(ssh_wrapper, git_dir, *args):
     log("setting environment GIT_SSH=%s" % ssh_wrapper)
     os.environ['GIT_SSH'] = "%s" % ssh_wrapper
