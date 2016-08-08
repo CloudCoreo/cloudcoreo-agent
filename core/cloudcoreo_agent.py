@@ -393,7 +393,9 @@ def bootstrap():
     clone_for_asi(asi['branch'], asi['revision'], appstack['gitUrl'], key['keyMaterial'],
                   OPTIONS_FROM_CONFIG_FILE.work_dir)
     #  run_all_boot_scripts("#{DaemonKit.arguments.options[:work_dir]}", "#{DaemonKit.arguments.options[:server_name]}")
-    run_all_boot_scripts(OPTIONS_FROM_CONFIG_FILE.work_dir, OPTIONS_FROM_CONFIG_FILE.serverName)
+    if OPTIONS_FROM_CONFIG_FILE.server_name and len(OPTIONS_FROM_CONFIG_FILE.server_name):
+        repo_dir = OPTIONS_FROM_CONFIG_FILE.work_dir + '/repo'
+        run_all_boot_scripts(repo_dir, OPTIONS_FROM_CONFIG_FILE.server_name)
 
 
 def send_logs_to_webapp():
