@@ -253,18 +253,14 @@ def git(ssh_wrapper, git_dir, *args):
 def get_environment_dict():
     environment = {}
     default_config = get_default_config()
-    log("got default from appstack [%s]" % default_config)
     config = get_config()
-    log("got config [%s]" % config)
     default_vars = json.loads(
         re.sub('\n', r'', unicodedata.normalize('NFKD', default_config['config']).encode('ascii', 'ignore')))
-    instance_vars = json.loads(
-        re.sub('\n', r'', unicodedata.normalize('NFKD', config['document']).encode('ascii', 'ignore')))
+    instance_vars = config
     all_vars = {'variables': default_vars['variables']}
-    all_vars['variables'].update(instance_vars['variables'])
+    all_vars['variables'].update(instance_vars)
     for var in all_vars['variables']:
         value = all_vars['variables'][var]
-        log("value: %s" % value)
         # if ! value['value'].nil? then
         if 'value' in value.keys() and value['value'] is not None:
             # environment[var.to_s] = value['value']
