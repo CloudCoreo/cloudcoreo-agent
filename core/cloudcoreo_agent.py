@@ -168,6 +168,8 @@ def mkdir_p(path):
 
 def clone_for_asi(branch, revision, repo_url, key_material, work_dir):
     mkdir_p(work_dir)
+    gitError = False
+
     fd, temp_key_path = mkstemp()
 
     # lets write the private key material to a temp file
@@ -203,25 +205,39 @@ def clone_for_asi(branch, revision, repo_url, key_material, work_dir):
     log("os.chdir(%s)" % work_dir)
     os.chdir(work_dir)
     log("cloning repo from url: %s" % repo_url.strip())
-    git(ssh_wrapper_path, work_dir, "clone", repo_url.strip(), "repo")
+    process = git(ssh_wrapper_path, work_dir, "clone", repo_url.strip(), "repo")
+    log("git clone returned: %s" % process.returncode)
+    if process.returncode != 0:
+        gitError = True
     log("os.chdir(%s/repo)" % work_dir)
     os.chdir("%s/repo" % work_dir)
 
     if branch is not None:
         log("checking out branch %s" % branch)
-        git(ssh_wrapper_path, "%s/repo" % work_dir, "checkout", branch)
+        process = git(ssh_wrapper_path, "%s/repo" % work_dir, "checkout", branch)
+        log("git checkout branch returned: %s" % process.returncode)
+        if process.returncode != 0:
+            gitError = True
 
     if revision is not None:
         log("checking out revision %s" % revision)
-        git(ssh_wrapper_path, "%s/repo" % work_dir, "checkout", revision)
+        process = git(ssh_wrapper_path, "%s/repo" % work_dir, "checkout", revision)
+        log("git checkout revision returned: %s" % process.returncode)
+        if process.returncode != 0:
+            gitError = True
 
-    log("completed recursive checkout")
-    git(ssh_wrapper_path, "%s/repo" % work_dir, "submodule", "update", "--recursive", "--init")
+    log("starting recursive checkout")
+    process = git(ssh_wrapper_path, "%s/repo" % work_dir, "submodule", "update", "--recursive", "--init")
+    log("git submodule checkout returned: %s" % process.returncode)
+    if process.returncode != 0:
+        gitError = True
     log("completed recursive checkout")
 
     log("removing temporary files for git operations")
     os.remove(temp_key_path)
     os.remove(ssh_wrapper_path)
+
+    return gitError
 
 def get_config():
     config = get_coreo_appstackinstance_config()
