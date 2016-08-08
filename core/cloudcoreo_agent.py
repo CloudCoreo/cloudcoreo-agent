@@ -402,10 +402,12 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
             if not err:
                 with open(LOCK_FILE_PATH, 'a') as lockFile:
                     lockFile.write("%s\n" % full_path)
+                with open(OPTIONS_FROM_CONFIG_FILE.log_file, 'r') as log_file:
+                    out = log_file.read()
+                    log(out)
             else:
                 full_run_error = err
                 log(err)
-            log(out)
 
     # if we have not received any errors for the whole run, lets mark the bootstrap lock as complete
     if not full_run_error:
