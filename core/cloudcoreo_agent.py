@@ -219,6 +219,9 @@ def clone_for_asi(branch, revision, repo_url, key_material, work_dir):
     git(ssh_wrapper_path, "%s/repo" % work_dir, "submodule", "update", "--recursive", "--init")
     log("completed recursive checkout")
 
+    log("removing temporary files for git operations")
+    os.remove(temp_key_path)
+    os.remove(ssh_wrapper_path)
 
 def get_config():
     config = get_coreo_appstackinstance_config()
