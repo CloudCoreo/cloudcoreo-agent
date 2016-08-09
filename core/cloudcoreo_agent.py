@@ -220,18 +220,6 @@ def clone_for_asi(branch, revision, repo_url, key_material, work_dir):
     log("completed recursive checkout")
 
 
-def get_config():
-    config = get_coreo_appstackinstance_config()
-    log("got config: %s" % config)
-    return config
-
-
-def get_default_config():
-    config = get_coreo_appstack()
-    log("got appstack: %s" % config)
-    return config
-
-
 def git(ssh_wrapper, git_dir, *args):
     log("setting environment GIT_SSH=%s" % ssh_wrapper)
     os.environ['GIT_SSH'] = "%s" % ssh_wrapper
@@ -252,19 +240,14 @@ def git(ssh_wrapper, git_dir, *args):
 
 def get_environment_dict():
     environment = {}
-    default_config = get_default_config()
-    log("got default from appstack [%s]" % default_config)
-    config = get_config()
-    log("got config [%s]" % config)
-    default_vars = json.loads(
-        re.sub('\n', r'', unicodedata.normalize('NFKD', default_config['config']).encode('ascii', 'ignore')))
-    instance_vars = json.loads(
-        re.sub('\n', r'', unicodedata.normalize('NFKD', config['document']).encode('ascii', 'ignore')))
-    all_vars = {'variables': default_vars['variables']}
-    all_vars['variables'].update(instance_vars['variables'])
+    asi_vars = get_coreo_appstackinstance_config()
+    appstack = get_coreo_appstack()
+    appstack_vars = json.loads(
+        re.sub('\n', r'', unicodedata.normalize('NFKD', appstack['config']).encode('ascii', 'ignore')))
+    all_vars = {'variables': appstack_vars['variables']}
+    all_vars['variables'].update(asi_vars)
     for var in all_vars['variables']:
         value = all_vars['variables'][var]
-        log("value: %s" % value)
         # if ! value['value'].nil? then
         if 'value' in value.keys() and value['value'] is not None:
             # environment[var.to_s] = value['value']
