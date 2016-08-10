@@ -335,13 +335,11 @@ def get_script_order_files(root_dir, server_name):
             strings_replaced = string.replace(
                 string.replace(string.replace(full_path.lower(), "extends", ""), "#{server_name.downcase}", ""), "/",
                 "")
-            log("checking if boot-scriptsorder is in [%s]" % strings_replaced)
+            log("checking if boot-scritsorder is in [%s]" % strings_replaced)
             if "boot-scriptsorder" in strings_replaced:
                 order_files.append(full_path)
-    # DM: 08Aug2016: this logic seems wrong
-    # TODO:
-    # if len(order_files) == 0 and server_name != "repo":
-    #     order_files = get_script_order_files(root_dir, "repo")
+    if len(order_files) == 0 and server_name != "repo":
+        order_files = get_script_order_files(root_dir, "repo")
     log("found ordered_files: %s" % order_files)
     order_files.sort(key=len, reverse=True)
     log("order_files %s" % order_files)
