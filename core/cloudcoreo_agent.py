@@ -198,7 +198,12 @@ def mkdir_p(path):
 
 
 def clone_for_asi(branch, revision, repo_url, key_material, work_dir):
-    mkdir_p(work_dir)
+    gitError = False
+
+    if repo_url.strip() in open(LOCK_FILE_PATH, 'r').read():
+        log("skipping git clone for repo [%s]. Already cloned." % repo_url.strip())
+        return gitError
+
     fd, temp_key_path = mkstemp()
 
     # lets write the private key material to a temp file
@@ -231,25 +236,48 @@ def clone_for_asi(branch, revision, repo_url, key_material, work_dir):
     os.chmod(ssh_wrapper_path, st.st_mode | stat.S_IEXEC)
 
     # now we do the cloning
+    mkdir_p(work_dir)
     log("os.chdir(%s)" % work_dir)
     os.chdir(work_dir)
     log("cloning repo from url: %s" % repo_url.strip())
-    git(ssh_wrapper_path, work_dir, "clone", repo_url.strip(), "repo")
+    process = git(ssh_wrapper_path, work_dir, "clone", repo_url.strip(), "repo")
+    log("git clone returned: %s" % process.returncode)
+    if process.returncode != 0:
+        gitError = True
     log("os.chdir(%s/repo)" % work_dir)
     os.chdir("%s/repo" % work_dir)
 
     if branch is not None:
         log("checking out branch %s" % branch)
-        git(ssh_wrapper_path, "%s/repo" % work_dir, "checkout", branch)
+        process = git(ssh_wrapper_path, "%s/repo" % work_dir, "checkout", branch)
+        log("git checkout branch returned: %s" % process.returncode)
+        if process.returncode != 0:
+            gitError = True
 
     if revision is not None:
         log("checking out revision %s" % revision)
-        git(ssh_wrapper_path, "%s/repo" % work_dir, "checkout", revision)
+        process = git(ssh_wrapper_path, "%s/repo" % work_dir, "checkout", revision)
+        log("git checkout revision returned: %s" % process.returncode)
+        if process.returncode != 0:
+            gitError = True
 
-    log("completed recursive checkout")
-    git(ssh_wrapper_path, "%s/repo" % work_dir, "submodule", "update", "--recursive", "--init")
+    log("starting recursive checkout")
+    process = git(ssh_wrapper_path, "%s/repo" % work_dir, "submodule", "update", "--recursive", "--init")
+    log("git submodule checkout returned: %s" % process.returncode)
+    if process.returncode != 0:
+        gitError = True
     log("completed recursive checkout")
 
+    log("removing temporary files for git operations")
+    os.remove(temp_key_path)
+    os.remove(ssh_wrapper_path)
+
+    # If all git operations succeeded, mark that repo was cloned successfully
+    if not gitError:
+        with open(LOCK_FILE_PATH, 'a') as lockFile:
+            lockFile.write("%s\n" % repo_url.strip())
+
+    return gitError
 
 def git(ssh_wrapper, git_dir, *args):
     log("setting environment GIT_SSH=%s" % ssh_wrapper)
