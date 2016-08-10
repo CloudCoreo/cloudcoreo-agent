@@ -36,14 +36,13 @@ LOCK_FILE_PATH = ''
 PIP_PACKAGE_NAME = 'run_client'
 PROCESSED_SQS_MESSAGES_DICT_PATH = '/tmp/processed-messages.txt'
 dt = time.time()
-LOGS = [{'text': 'test', 'date': dt},
-        {'text': 'test1', 'date': dt}]
-
+LOGS = []
+MESSAGE_NEXT_NONE = -1
 
 def log(log_text):
     log_text = str(log_text)
     print log_text
-    log_dict = {'text': log_text, 'date': time.time()}
+    log_dict = {'log_message': log_text, 'date': time.time()}
     LOGS.append(log_dict)
 
 
@@ -114,6 +113,38 @@ def set_agent_uuid():
     global OPTIONS_FROM_CONFIG_FILE
     OPTIONS_FROM_CONFIG_FILE = get_configs()
     log("OPTIONS.agent_uuid: %s" % OPTIONS_FROM_CONFIG_FILE.agent_uuid)
+
+
+def create_message(message_type, message, message_id = MESSAGE_NEXT_NONE):
+    message = {
+        "header": {
+            "publisher": {
+                "publisher_type": "agent",
+                "publisher_version": version,
+                "publisher_id": OPTIONS_FROM_CONFIG_FILE.agent_uuid,
+                "publisher_access_id": OPTIONS_FROM_CONFIG_FILE.coreo_access_id,
+            },
+            "appstack": {
+                "appstack_id": get_coreo_appstack()['_id'],
+                "asi_id": OPTIONS_FROM_CONFIG_FILE.asi_id,
+            },
+            "timestamp": time.time(),
+            "message_id": message_id
+        },
+        "body": {
+            "message_type": message_type,
+            "message": message
+        }
+    }
+    return message
+
+
+def publish_agent_online():
+    message = create_message("agent_online", "online")
+    stringified_json = json.dumps(message)
+    print "uuid message: %s" % stringified_json
+    if not OPTIONS_FROM_CONFIG_FILE.debug:
+        publish_to_sns(stringified_json, 'AGENT_ONLINE', OPTIONS_FROM_CONFIG_FILE.topic_arn)
 
 
 def get_availability_zone():
@@ -354,10 +385,12 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
             if not err:
                 with open(LOCK_FILE_PATH, 'a') as lockFile:
                     lockFile.write("%s\n" % full_path)
+                with open(OPTIONS_FROM_CONFIG_FILE.log_file, 'r') as log_file:
+                    out = log_file.read()
+                    log(out)
             else:
                 full_run_error = err
                 log(err)
-            log(out)
 
     # if we have not received any errors for the whole run, lets mark the bootstrap lock as complete
     if not full_run_error:
@@ -380,10 +413,9 @@ def bootstrap():
 
 
 def send_logs_to_webapp():
-    message_with_logs_for_webapp = {
-        "body": LOGS
-    }
+    message_with_logs_for_webapp = create_message("script_logs", LOGS)
     stringified_json = json.dumps(message_with_logs_for_webapp)
+    print 'stringified_json: ' + stringified_json
     try:
         publish_to_sns(stringified_json, 'LOGS', OPTIONS_FROM_CONFIG_FILE.topic_arn)
         del LOGS[:]
@@ -451,12 +483,13 @@ def run_script(message_body):
 
 def recursive_daemon():
     try:
-        # if not os.path.isfile(LOCK_FILE_PATH):
-        #     # touch the bootstrap lock file to indicate we have started to run through it
-        #     with open(LOCK_FILE_PATH, 'a'):
-        #         os.utime(LOCK_FILE_PATH, None)
-        # if COMPLETE_STRING not in open(LOCK_FILE_PATH, 'r').read():
-        #     bootstrap()
+        if not os.path.isfile(LOCK_FILE_PATH):
+            # touch the bootstrap lock file to indicate we have started to run through it
+            with open(LOCK_FILE_PATH, 'a'):
+                os.utime(LOCK_FILE_PATH, None)
+        if COMPLETE_STRING not in open(LOCK_FILE_PATH, 'r').read():
+            bootstrap()
+
         sqs_response = get_sqs_messages(OPTIONS_FROM_CONFIG_FILE.queue_url)
         if not sqs_response:
             raise ValueError("Error while getting SQS messages.")
@@ -488,9 +521,6 @@ def start_agent():
     global LOCK_FILE_PATH
     LOCK_FILE_PATH = "%s/bootstrap.lock" % OPTIONS_FROM_CONFIG_FILE.work_dir
 
-    if not OPTIONS_FROM_CONFIG_FILE.agent_uuid:
-        set_agent_uuid()
-
     global SQS_CLIENT, SNS_CLIENT
 
     sqs_sns_region = OPTIONS_FROM_CONFIG_FILE.topic_arn.split(':')[3]
@@ -506,12 +536,17 @@ def start_agent():
                               aws_secret_access_key='%s' % aws_secret_access_key,
                               region_name='%s' % sqs_sns_region)
 
+    if not OPTIONS_FROM_CONFIG_FILE.agent_uuid:
+        set_agent_uuid()
+
+    publish_agent_online()
+
     PROCESSED_SQS_MESSAGES = read_processed_messages_from_file()
     print PROCESSED_SQS_MESSAGES
 
     recursive_daemon()
 
-parser=argparse.ArgumentParser(description='Parse version argument')
+parser = argparse.ArgumentParser(description='Parse version argument')
 parser.add_argument('--version', action='store_true', help="Get script version")
 if parser.parse_args().version:
     print "%s" % version
