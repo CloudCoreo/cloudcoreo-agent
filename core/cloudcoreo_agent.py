@@ -429,16 +429,12 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
 
 
 def bootstrap():
-    #  asi = get_coreo_appstackinstance_response("")
     log("getting response from server")
     asi = get_coreo_appstackinstance()
     appstack = get_coreo_appstack()
     key = get_coreo_key()
-    #  Coreo::GIT.clone_for_asi("#{DaemonKit.arguments.options[:asi_id]}", asi['branch'], asi['revision'],
-    # asi['gitUrl'], asi['keyMaterial'], "#{DaemonKit.arguments.options[:work_dir]}")
     clone_for_asi(asi['branch'], asi['revision'], appstack['gitUrl'], key['keyMaterial'],
                   OPTIONS_FROM_CONFIG_FILE.work_dir)
-    #  run_all_boot_scripts("#{DaemonKit.arguments.options[:work_dir]}", "#{DaemonKit.arguments.options[:server_name]}")
     if OPTIONS_FROM_CONFIG_FILE.server_name and len(OPTIONS_FROM_CONFIG_FILE.server_name):
         repo_dir = OPTIONS_FROM_CONFIG_FILE.work_dir + '/repo'
         run_all_boot_scripts(repo_dir, OPTIONS_FROM_CONFIG_FILE.server_name)
