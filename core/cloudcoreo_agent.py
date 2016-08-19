@@ -335,7 +335,7 @@ def get_script_order_files(root_dir, server_name):
             strings_replaced = string.replace(
                 string.replace(string.replace(full_path.lower(), "extends", ""), "#{server_name.downcase}", ""), "/",
                 "")
-            log("checking if boot-scritsorder is in [%s]" % strings_replaced)
+            log("checking if boot-scriptsorder is in [%s]" % strings_replaced)
             if "boot-scriptsorder" in strings_replaced:
                 order_files.append(full_path)
     if len(order_files) == 0 and server_name != "repo":
