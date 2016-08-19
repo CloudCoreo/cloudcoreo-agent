@@ -449,7 +449,7 @@ def send_logs_to_webapp():
     stringified_json = json.dumps(message_with_logs_for_webapp)
     print 'stringified_json: ' + stringified_json
     try:
-        publish_to_sns(stringified_json, 'LOGS', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+        publish_to_sns(stringified_json, 'AGENT_LOGS', OPTIONS_FROM_CONFIG_FILE.topic_arn)
         del LOGS[:]
     except Exception as ex:
         log(ex)
