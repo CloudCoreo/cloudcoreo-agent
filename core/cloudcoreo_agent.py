@@ -122,11 +122,11 @@ def create_message(message_type, message, message_id = MESSAGE_NEXT_NONE):
                 "publisher_type": "agent",
                 "publisher_version": version,
                 "publisher_id": OPTIONS_FROM_CONFIG_FILE.agent_uuid,
-                "publisher_access_id": OPTIONS_FROM_CONFIG_FILE.coreo_access_id,
+                "publisher_access_id": OPTIONS_FROM_CONFIG_FILE.coreo_access_id
             },
             "appstack": {
                 "appstack_id": get_coreo_appstack()['_id'],
-                "asi_id": OPTIONS_FROM_CONFIG_FILE.asi_id,
+                "asi_id": OPTIONS_FROM_CONFIG_FILE.asi_id
             },
             "timestamp": time.time(),
             "message_id": message_id
