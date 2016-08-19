@@ -338,10 +338,8 @@ def get_script_order_files(root_dir, server_name):
             log("checking if boot-scriptsorder is in [%s]" % strings_replaced)
             if "boot-scriptsorder" in strings_replaced:
                 order_files.append(full_path)
-    # DM: 08Aug2016: this logic seems wrong
-    # TODO:
-    # if len(order_files) == 0 and server_name != "repo":
-    #     order_files = get_script_order_files(root_dir, "repo")
+    if len(order_files) == 0 and server_name != "repo":
+        order_files = get_script_order_files(root_dir, "repo")
     log("found ordered_files: %s" % order_files)
     order_files.sort(key=len, reverse=True)
     log("order_files %s" % order_files)
@@ -435,9 +433,8 @@ def bootstrap():
     key = get_coreo_key()
     clone_for_asi(asi['branch'], asi['revision'], appstack['gitUrl'], key['keyMaterial'],
                   OPTIONS_FROM_CONFIG_FILE.work_dir)
-    if OPTIONS_FROM_CONFIG_FILE.server_name and len(OPTIONS_FROM_CONFIG_FILE.server_name):
-        repo_dir = OPTIONS_FROM_CONFIG_FILE.work_dir + '/repo'
-        run_all_boot_scripts(repo_dir, OPTIONS_FROM_CONFIG_FILE.server_name)
+    #  run_all_boot_scripts("#{DaemonKit.arguments.options[:work_dir]}", "#{DaemonKit.arguments.options[:server_name]}")
+    run_all_boot_scripts(OPTIONS_FROM_CONFIG_FILE.work_dir, OPTIONS_FROM_CONFIG_FILE.server_name)
 
 
 def send_logs_to_webapp():
