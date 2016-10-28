@@ -571,10 +571,11 @@ def start_agent():
 
     recursive_daemon()
 
-parser = argparse.ArgumentParser(description='Parse version argument')
-parser.add_argument('--version', action='store_true', help="Get script version")
-if parser.parse_args().version:
-    print "%s" % version
-    terminate_script()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Parse version argument')
+    parser.add_argument('--version', action='store_true', help="Get script version")
+    if parser.parse_args().version:
+        print "%s" % version
+        terminate_script()
 
-start_agent()
+    start_agent()
