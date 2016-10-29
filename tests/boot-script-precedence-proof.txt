@@ -1,5 +1,10 @@
 This composite is not intended to make sense, but rather exercise the precedence model thoroughly.
 
+The precedence order of directory processing is indicated by the sequence in [].
+
+The values in () are the actual values in the files, so they can be validated once precedence processing
+has been completed.
+
 tyax:repo mattes$ tree cloudcoreo-agent/tests/testdata/57a1fa37c514992cf3958242/repo -P order.yaml --prune
 ├── operational-scripts
 │   └── order.yaml
