@@ -15,6 +15,7 @@ import argparse
 from tempfile import mkstemp
 
 import os
+import shutil
 import uuid
 import re
 import requests
@@ -38,6 +39,9 @@ PROCESSED_SQS_MESSAGES_DICT_PATH = '/tmp/processed-messages.txt'
 dt = time.time()
 LOGS = []
 MESSAGE_NEXT_NONE = -1
+
+# sort directories by extends, stack-, overrides, services, shutdown-, boot-, operational-
+PRECEDENCE_ORDER = {'t': 0, 'e': 1, 's': 2, 'p': 3, 'v': 4, 'o': 5, 'b': 6}
 
 def log(log_text):
     log_text = str(log_text)
@@ -344,6 +348,50 @@ def get_script_order_files(root_dir, server_name):
     order_files.sort(key=len, reverse=True)
     log("order_files %s" % order_files)
     return order_files
+
+
+def precedence_walk(start_dir, look_for, stackdash="", override=False, debug=False):
+    collected = []
+    walk_params = next(os.walk(start_dir, topdown=True))
+    for dirname in sorted(walk_params[1], key=lambda word: [PRECEDENCE_ORDER.get(c, ord(c)) for c in word]):
+        full_path = os.path.join(start_dir, dirname)
+        debug_path = re.sub('.*/repo', 'repo', start_dir)
+        if "extends" in dirname:
+            if debug: log("got %s/%s : extends" % (debug_path, dirname))
+            collected.extend(precedence_walk(full_path, look_for, stackdash, override, debug))
+        elif "stack-" in dirname:
+            if debug: log("got %s/%s : stack-" % (debug_path, dirname))
+            collected.extend(precedence_walk(full_path, look_for, stackdash, override, debug))
+        elif "overrides" in dirname and override:
+            if debug: log("got %s/%s : overrides" % (debug_path, dirname))
+            collected.extend(precedence_walk(full_path, look_for, stackdash, override, debug))
+        if debug:
+            if "services" in dirname:
+                log("got %s/%s : services" % (debug_path, dirname))
+            elif "boot-scripts" in dirname:
+                log("got %s/%s : boot-scripts" % (debug_path, dirname))
+            elif "operational-scripts" in dirname:
+                log("got %s/%s : operational-scripts" % (debug_path, dirname))
+            elif "shutdown-scripts" in dirname:
+                log("got %s/%s : shutdown-scripts" % (debug_path, dirname))
+
+        for filename in os.listdir(full_path):
+            full_path_filename = os.path.join(full_path, filename)
+            contains = look_for in full_path_filename and stackdash in full_path_filename
+            if override and contains and "overrides" in full_path_filename:
+                collected.append(full_path_filename)
+                # Just replace first instance of overrides to do the copy
+                dest = re.sub("overrides", "", full_path_filename, 1)
+                if not os.path.isfile(dest):
+                    dest = os.path.dirname(dest)
+                shutil.copy(full_path_filename, dest)
+                if debug:
+                    command = "cp %s %s" % (re.sub('.*/repo', 'repo', full_path_filename), re.sub('.*/repo', 'repo', dest))
+                    log("---> command: %s" % command)
+            elif not override and contains:
+                collected.append(full_path_filename)
+
+    return collected
 
 
 def set_env(env_list):
