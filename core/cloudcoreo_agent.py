@@ -43,6 +43,7 @@ MESSAGE_NEXT_NONE = -1
 # sort directories by extends, stack-, overrides, services, shutdown-, boot-, operational-
 PRECEDENCE_ORDER = {'t': 0, 'e': 1, 's': 2, 'p': 3, 'v': 4, 'o': 5, 'b': 6}
 
+
 def log(log_text):
     log_text = str(log_text)
     print log_text
