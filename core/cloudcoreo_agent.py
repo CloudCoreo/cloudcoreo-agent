@@ -95,8 +95,10 @@ def get_config_path():
     return config_file_location
 
 
-def get_configs():
+def get_configs(conffile=''):
     config_file_location = get_config_path()
+    if conffile:
+        config_file_location = conffile
     print '*Reading configs from ' + config_file_location
     with open(config_file_location, 'r') as ymlfile:
         configs = yaml.load(ymlfile)
@@ -448,7 +450,8 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
             # full_path = File.join(File.dirname(f), script)
             full_path = os.path.join(os.path.dirname(f), script)
             log("running script [%s]" % full_path)
-            os.chmod(full_path, stat.S_IEXEC)
+            if not OPTIONS_FROM_CONFIG_FILE.debug:
+                os.chmod(full_path, stat.S_IEXEC)
             set_env(env)
             if full_path in open(LOCK_FILE_PATH, 'r').read():
                 log("skipping run of [%s]. Already run" % script)
@@ -456,8 +459,10 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
             # we need to check the error and output if we are debugging or not
             err = None
             out = None
-            if not OPTIONS_FROM_CONFIG_FILE.debug:
-                err = run_cmd(os.path.dirname(full_path), "./%s" % os.path.basename(full_path))
+            command = "./%s" % os.path.basename(full_path)
+            if OPTIONS_FROM_CONFIG_FILE.debug:
+                command = "date"
+            err = run_cmd(os.path.dirname(full_path), command)
             if not err:
                 with open(LOCK_FILE_PATH, 'a') as lockFile:
                     lockFile.write("%s\n" % full_path)
@@ -580,19 +585,23 @@ def recursive_daemon():
         recursive_daemon()
 
 
-def start_agent():
-    print '*Starting agent... Version ' + __version__
-
+def load_configs(conffile=''):
     global OPTIONS_FROM_CONFIG_FILE
-    OPTIONS_FROM_CONFIG_FILE = get_configs()
-    if OPTIONS_FROM_CONFIG_FILE.version:
-        print "%s" % version
-        terminate_script()
+    OPTIONS_FROM_CONFIG_FILE = get_configs(conffile)
 
     # lets set up a lock file so we don't rerun on bootstrap... this will
     # also allow people to remove the lock file to rerun everything
     global LOCK_FILE_PATH
     LOCK_FILE_PATH = "%s/bootstrap.lock" % OPTIONS_FROM_CONFIG_FILE.work_dir
+
+
+def start_agent():
+    print '*Starting agent... Version ' + __version__
+
+    load_configs()
+    if OPTIONS_FROM_CONFIG_FILE.version:
+        print "%s" % version
+        terminate_script()
 
     global SQS_CLIENT, SNS_CLIENT
 
