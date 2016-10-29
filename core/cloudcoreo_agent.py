@@ -322,7 +322,9 @@ def get_environment_dict():
             environment[var] = value.get('default', '')
     return environment
 
-
+## <DEPRECATED_CODE>
+## PLA-513 deprecates get_script_order_files
+## This code should remain here for backwards compatibility testing
 ######################################################################
 # this is all to deal with overriding service config.rb files
 ######################################################################
@@ -350,6 +352,7 @@ def get_script_order_files(root_dir, server_name):
     order_files.sort(key=len, reverse=True)
     log("order_files %s" % order_files)
     return order_files
+## </DEPRECATED_CODE>
 
 
 def precedence_walk(start_dir, look_for, stackdash="", override=False, debug=False):
@@ -430,12 +433,20 @@ def run_cmd(work_dir, *args):
 
 
 def run_all_boot_scripts(repo_dir, server_name_dir):
-    # env = {}
     env = get_environment_dict()
-    # script_order_files = []
-    script_order_files = get_script_order_files(repo_dir, server_name_dir)
     log("setting env [%s]" % env)
 
+    # PLA-513 changes the method used to get files
+    # script_order_files = get_script_order_files(repo_dir, server_name_dir)
+    bootscripts_name = "boot-scripts/order.yaml"
+    # First apply any overrides on this
+    override = True
+    precedence_walk(repo_dir, bootscripts_name, server_name_dir, override)
+    # Then get the scripts to run now that overrides have been applied
+    override = False
+    script_order_files = precedence_walk(repo_dir, bootscripts_name, server_name_dir, override)
+
+    num_order_files_processed = 0
     full_run_error = None
     for f in script_order_files:
         log("loading file [%s]" % f)
@@ -444,10 +455,8 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
         if my_doc is None or my_doc['script-order'] is None:
             continue
         log("[%s]" % my_doc['script-order'])
-        # order = YAML.load_file(f)
-        # order['script-order'].each { |script|
+        num_order_files_processed += 1
         for script in my_doc['script-order']:
-            # full_path = File.join(File.dirname(f), script)
             full_path = os.path.join(os.path.dirname(f), script)
             log("running script [%s]" % full_path)
             if not OPTIONS_FROM_CONFIG_FILE.debug:
@@ -477,6 +486,8 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
     if not full_run_error:
         with open(LOCK_FILE_PATH, 'a') as lockFile:
             lockFile.write(COMPLETE_STRING)
+
+    return num_order_files_processed
 
 
 def bootstrap():
