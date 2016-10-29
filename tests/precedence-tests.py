@@ -7,25 +7,42 @@ import re
 import os
 import unittest
 import inspect
+import yaml
 
 sys.path.append('../core')
 from cloudcoreo_agent import *
 
+# Enable DEBUG for verbose test output
 DEBUG = False
-
+# In general DEBUG_AGENT should be True to prevent scripts in the test_package from running
+DEBUG_AGENT = True
 
 class CompositeTests(unittest.TestCase):
 
     # global OPTIONS_FROM_CONFIG_FILE
     # OPTIONS_FROM_CONFIG_FILE = get_configs()
     _tmpdir = mkdtemp()
-    _repoDir = ''
 
     def setUp(self):
-        tar = tarfile.open("testdata/57a1fa37c514992cf3958242.tgz")
+        test_package = "57a1fa37c514992cf3958242"
+        tar = tarfile.open(("testdata/%s.tgz" % test_package))
         tar.extractall(self._tmpdir)
         tar.close()
-        self._repoDir = os.path.join(self._tmpdir, "57a1fa37c514992cf3958242/repo")
+
+        self._workdir = os.path.join(self._tmpdir, test_package)
+        self._repodir = os.path.join(self._workdir, "repo")
+        self._agent_conf = os.path.join(self._tmpdir, "agent.conf")
+
+        shutil.copy("testdata/agent.conf", self._agent_conf)
+
+        with open(self._agent_conf, 'r') as ymlfile:
+            configs = yaml.load(ymlfile)
+
+        # Save agent_uuid to config file
+        with open(self._agent_conf, 'w') as ymlfile:
+            configs['work_dir'] = self._workdir
+            configs['debug'] = DEBUG_AGENT
+            ymlfile.write(yaml.dump(configs, default_style="'"))
 
     def tearDown(self):
         # cleanup
@@ -33,17 +50,17 @@ class CompositeTests(unittest.TestCase):
 
     def file_dump(self, files):
         for filename in files:
-            full_path_filename = os.path.join(self._repoDir, filename)
+            full_path_filename = os.path.join(self._repodir, filename)
             with open(full_path_filename, 'r') as openFile:
-                content = openFile.read().replace('\n', '')
+                content = openFile.read().replace('script-order:\n  - ', '').replace('\n', '')
                 print "filename: %s : %s" % (filename, content)
 
     def compare_file_contents_to_str(self, files_hash, debug=DEBUG):
         compares = []
         for filename, value in files_hash.iteritems():
-            full_path_filename = os.path.join(self._repoDir, filename)
+            full_path_filename = os.path.join(self._repodir, filename)
             with open(full_path_filename) as openFile:
-                content = openFile.read().replace('\n', '')
+                content = openFile.read().replace('script-order:\n  - ', '').replace('\n', '')
                 compares.append(content == value)
 
                 if debug:
@@ -57,12 +74,12 @@ class CompositeTests(unittest.TestCase):
         compares = []
         indices = range(0, len(filesA))
         for index in indices:
-            full_path_fileA = os.path.join(self._repoDir, filesA[index])
-            full_path_fileB = os.path.join(self._repoDir, filesB[index])
+            full_path_fileA = os.path.join(self._repodir, filesA[index])
+            full_path_fileB = os.path.join(self._repodir, filesB[index])
             with open(full_path_fileA) as fileA:
-                contentA = fileA.read().replace('\n', '')
+                contentA = fileA.read().replace('script-order:\n  - ', '').replace('\n', '')
             with open(full_path_fileB) as fileB:
-                contentB = fileB.read().replace('\n', '')
+                contentB = fileB.read().replace('script-order:\n  - ', '').replace('\n', '')
 
             if debug:
                 print "filesA[%d]: %s : %s" % (index, filesA[index], contentA)
@@ -126,7 +143,7 @@ class BootscriptsTest(CompositeTests):
 
     def bootscripts_check(self, lookfor, truth_files):
         override = False
-        test_files = precedence_walk(self._repoDir, "boot-scripts/order.yaml", lookfor, override, DEBUG)
+        test_files = precedence_walk(self._repodir, "boot-scripts/order.yaml", lookfor, override, DEBUG)
 
         if DEBUG:
             print "--------- truth_files [%d] ----------" % len(truth_files)
@@ -158,7 +175,7 @@ class BootscriptsTest(CompositeTests):
             self.file_dump(truth_files + truth_files_overrides)
 
         override = True
-        test_files = precedence_walk(self._repoDir, "boot-scripts/order.yaml", lookfor, override, DEBUG)
+        test_files = precedence_walk(self._repodir, "boot-scripts/order.yaml", lookfor, override, DEBUG)
 
         if DEBUG:
             print "--------- truth_files_overrides [%d] ----------" % len(truth_files_overrides)
@@ -191,7 +208,7 @@ class OldAndNewCompareTests(CompositeTests):
     @unittest.expectedFailure
     def test_old_new_bootscripts(self):
         get_order_files = get_script_order_files(self._tmpdir, "servers-nat")
-        get_precedence_walk_files = precedence_walk(self._repoDir, "boot-scripts/order.yaml", "servers-nat")
+        get_precedence_walk_files = precedence_walk(self._repodir, "boot-scripts/order.yaml", "servers-nat")
 
         print "--------- get_order_files [%d] ----------" % len(get_order_files)
         print [re.sub('.*/repo/', '', entry) for entry in get_order_files]
