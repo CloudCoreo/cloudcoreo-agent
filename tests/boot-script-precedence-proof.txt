@@ -1,0 +1,93 @@
+This composite is not intended to make sense, but rather exercise the precedence model thoroughly.
+
+tyax:repo mattes$ tree cloudcoreo-agent/tests/testdata/57a1fa37c514992cf3958242/repo -P order.yaml --prune
+├── operational-scripts
+│   └── order.yaml
+├── overrides [3]
+│   ├── stack-servers-nat [3-1]
+│   │   └── extends [3-1-1]
+│   │       └── boot-scripts
+│   │           └── order.yaml (nb1o) --> (nb1)
+│   └── stack-servers-vpn [3-2]
+│       └── extends [3-2-1]
+│           ├── boot-scripts [3-2-1-2]
+│           │   └── order.yaml (vb2oooo) --> (vb2)
+│           └── overrides [3-2-1-1]
+│               └── extends
+│                   └── boot-scripts
+│                       └── order.yaml (vb1ooo) --> (vb1o)
+├── shutdown-scripts
+│   └── order.yaml
+├── stack-servers-nat [1]
+│   ├── extends [1-1]
+│   │   ├── boot-scripts [1-1-1]
+│   │   │   └── order.yaml (nb1) <-- (nb1o)
+│   │   └── shutdown-scripts
+│   │       └── order.yaml
+│   ├── operational-scripts
+│   │   └── order.yaml
+│   └── shutdown-scripts
+│       └── order.yaml
+└── stack-servers-vpn [2]
+    ├── boot-scripts [2-3]
+    │   └── order.yaml (vb4)
+    ├── extends [2-1]
+    │   ├── boot-scripts [2-1-4]
+    │   │   └── order.yaml (vb2) <-- (vb2o) <-- (vb2ooo) <-- (vb2oooo)
+    │   ├── extends [2-1-1]
+    │   │   └── boot-scripts
+    │   │       └── order.yaml (vb1) <-- (vb1o)
+    │   ├── overrides [2-1-3]
+    │   │   ├── boot-scripts [2-1-3-3]
+    │   │   │   └── order.yaml (vb2o) --> (vb2) <-- (vb2oo)
+    │   │   ├── extends [2-1-3-1]
+    │   │   │   └── boot-scripts
+    │   │   │       └── order.yaml (vb1o) --> (vb1) <-- (vb1oo) <-- (vb1ooo)
+    │   │   └── stack-servers-plus [2-1-3-2]
+    │   │           └── boot-scripts
+    │   │               └── order.yaml (vb3oo) --> (vb3) <-- (vb3ooo)
+    │   └── stack-servers-plus [2-1-2]
+    │       ├── boot-scripts [2-1-2-2]
+    │       │   └── order.yaml (vb3) <-- (vb3o) <-- (vb3oo)
+    │       └── overrides [2-1-2-1]
+    │           └── boot-scripts
+    │               └── order.yaml (vb3o) --> (vb3)
+    ├── operational-scripts
+    │   └── order.yaml
+    ├── overrides [2-2]
+    │   ├── extends [2-2-1]
+    │   │   ├── boot-scripts [2-2-1-2]
+    │   │   │   └── order.yaml (vb2ooo) --> (vb2)
+    │   │   └── overrides [2-2-1-1]
+    │   │       ├── boot-scripts [2-2-1-1-3]
+    │   │       │   └── order.yaml (vb2oo) --> (vb2o)
+    │   │       ├── extends [2-2-1-1-1]
+    │   │       │   └── boot-scripts
+    │   │       │       └── order.yaml (vb1oo) --> (vb1o)
+    │   │       └── stack-servers-plus [2-2-1-1-2]
+    │   │           └── boot-scripts
+    │   │               └── order.yaml (vb3ooo) --> (vb3oo)
+    │   └── operational-scripts [2-2-2]
+    │       └── order.yaml
+    └── shutdown-scripts
+        └── order.yaml
+
+
+tyax:repo mattes$ files=`find . -name order.yaml | grep -v operational-scripts/ | grep -v shutdown`
+tyax:repo mattes$ for f in $files; do echo -n "$f: "; cat $f; done
+./overrides/stack-servers-nat/extends/boot-scripts/order.yaml: nb1o
+./overrides/stack-servers-vpn/extends/boot-scripts/order.yaml: vb2oooo
+./overrides/stack-servers-vpn/extends/overrides/extends/boot-scripts/order.yaml: vb1ooo
+./stack-servers-nat/extends/boot-scripts/order.yaml: nb1
+./stack-servers-vpn/boot-scripts/order.yaml: vb4
+./stack-servers-vpn/extends/boot-scripts/order.yaml: vb2
+./stack-servers-vpn/extends/extends/boot-scripts/order.yaml: vb1
+./stack-servers-vpn/extends/overrides/boot-scripts/order.yaml: vb2o
+./stack-servers-vpn/extends/overrides/extends/boot-scripts/order.yaml: vb1o
+./stack-servers-vpn/extends/overrides/stack-servers-plus/boot-scripts/order.yaml: vb3oo
+./stack-servers-vpn/extends/stack-servers-plus/boot-scripts/order.yaml: vb3
+./stack-servers-vpn/extends/stack-servers-plus/overrides/boot-scripts/order.yaml: vb3o
+./stack-servers-vpn/overrides/extends/boot-scripts/order.yaml: vb2ooo
+./stack-servers-vpn/overrides/extends/overrides/boot-scripts/order.yaml: vb2oo
+./stack-servers-vpn/overrides/extends/overrides/extends/boot-scripts/order.yaml: vb1oo
+./stack-servers-vpn/overrides/extends/overrides/stack-servers-plus/boot-scripts/order.yaml: vb3ooo
