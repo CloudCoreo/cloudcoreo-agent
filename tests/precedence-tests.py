@@ -218,6 +218,13 @@ class OldAndNewCompareTests(CompositeTests):
         self.assertEqual(len(get_order_files), len(get_precedence_walk_files), "before and after did not return same number of files!")
 
 
+class RunBootScripts(CompositeTests):
+    def test_run_all_boot_scripts(self):
+        load_configs(self._agent_conf)
+
+        run_all_boot_scripts(self._repodir, "servers-nat")
+
+
 def suite():
     tests = [
         'test_servers_nat_bootscripts',
@@ -229,6 +236,9 @@ def suite():
 
     [compare_tests] = ['test_old_new_bootscripts']
     return unittest.TestSuite(map(OldAndNewCompareTests, compare_tests))
+
+    [run_script_tests] = ['run_all_bootscripts']
+    return unittest.TestSuite(map(RunBootScripts, run_script_tests))
 
 
 if __name__ == '__main__':
