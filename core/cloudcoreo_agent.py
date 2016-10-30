@@ -460,11 +460,9 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
     # PLA-513 changes the method used to get files
     # script_order_files = get_script_order_files(repo_dir, server_name_dir)
     bootscripts_name = "boot-scripts/order.yaml"
-    # repo_dir argument is really work_dir
-    start_dir = os.path.join(repo_dir, "repo")
     # Get the scripts to run assuming that overrides have already been applied earlier
     override = False
-    script_order_files = precedence_walk(start_dir, bootscripts_name, server_name_dir, override)
+    script_order_files = precedence_walk(repo_dir, bootscripts_name, server_name_dir, override)
 
     num_order_files_processed = 0
     full_run_error = None
@@ -519,10 +517,11 @@ def bootstrap():
                   OPTIONS_FROM_CONFIG_FILE.work_dir)
 
     # First apply any overrides in the repo for all files
+    repo_dir = os.path.join(OPTIONS_FROM_CONFIG_FILE.work_dir, "repo")
     override = True
-    precedence_walk(OPTIONS_FROM_CONFIG_FILE.work_dir, "", "", override)
+    precedence_walk(repo_dir, "", "", override)
 
-    run_all_boot_scripts(OPTIONS_FROM_CONFIG_FILE.work_dir, OPTIONS_FROM_CONFIG_FILE.server_name)
+    run_all_boot_scripts(repo_dir, OPTIONS_FROM_CONFIG_FILE.server_name)
 
 
 def send_logs_to_webapp():
