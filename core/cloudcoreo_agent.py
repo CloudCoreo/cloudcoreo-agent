@@ -362,7 +362,10 @@ def precedence_walk(start_dir, look_for, stackdash="", override=False, debug=Fal
     for dirname in sorted(walk_params[1], key=lambda word: [PRECEDENCE_ORDER.get(c, ord(c)) for c in word]):
         full_path = os.path.join(start_dir, dirname)
         debug_path = re.sub('.*/repo', 'repo', start_dir)
-        if "extends" in dirname:
+        if ".git" in dirname:
+            if debug: log("skipping git directory %s/%s : git" % (debug_path, dirname))
+            continue
+        elif "extends" in dirname:
             if debug: log("got %s/%s : extends" % (debug_path, dirname))
             collected.extend(precedence_walk(full_path, look_for, stackdash, override, debug))
         elif "stack-" in dirname:
@@ -370,6 +373,9 @@ def precedence_walk(start_dir, look_for, stackdash="", override=False, debug=Fal
             collected.extend(precedence_walk(full_path, look_for, stackdash, override, debug))
         elif "overrides" in dirname and override:
             if debug: log("got %s/%s : overrides" % (debug_path, dirname))
+            collected.extend(precedence_walk(full_path, look_for, stackdash, override, debug))
+        elif override:
+            if debug: log("got %s/%s : any directory for override" % (debug_path, dirname))
             collected.extend(precedence_walk(full_path, look_for, stackdash, override, debug))
         if debug:
             if "services" in dirname:
@@ -382,7 +388,15 @@ def precedence_walk(start_dir, look_for, stackdash="", override=False, debug=Fal
                 log("got %s/%s : shutdown-scripts" % (debug_path, dirname))
 
         for filename in os.listdir(full_path):
+            debug_path = re.sub('.*/repo', 'repo', full_path)
+            if debug:
+                log("considering filename: %s/%s" % (debug_path, filename))
             full_path_filename = os.path.join(full_path, filename)
+            # Only consider files, not directories
+            if not os.path.isfile(full_path_filename):
+                if debug:
+                    log("not a file: %s/%s" % (debug_path, filename))
+                continue
             contains = look_for in full_path_filename and stackdash in full_path_filename
             if override and contains and "overrides" in full_path_filename:
                 collected.append(full_path_filename)
@@ -390,12 +404,18 @@ def precedence_walk(start_dir, look_for, stackdash="", override=False, debug=Fal
                 dest = re.sub("overrides", "", full_path_filename, 1)
                 if not os.path.isfile(dest):
                     dest = os.path.dirname(dest)
+                    if not os.path.isdir(dest):
+                        if debug: log("creating directory: %s" % re.sub('.*/repo', 'repo', dest))
+                        os.makedirs(dest)
                 shutil.copy(full_path_filename, dest)
                 if debug:
                     command = "cp %s %s" % (re.sub('.*/repo', 'repo', full_path_filename), re.sub('.*/repo', 'repo', dest))
                     log("---> command: %s" % command)
             elif not override and contains:
+                if debug: log("collecting file: %s" % full_path_filename)
                 collected.append(full_path_filename)
+            elif debug:
+                log("skipping file: %s/%s" % (debug_path, filename))
 
     return collected
 
