@@ -91,7 +91,7 @@ class CompositeTests(unittest.TestCase):
         return compares
 
 
-class BootscriptsTest(CompositeTests):
+class OverridesTests(CompositeTests):
     _truth_files_nat = [
         'stack-servers-nat/extends/boot-scripts/order.yaml',
     ]
@@ -302,7 +302,8 @@ class BootscriptsTest(CompositeTests):
 
 class OldAndNewCompareTests(CompositeTests):
     @unittest.expectedFailure
-    def test_old_new_bootscripts(self):
+    def test_old_vs_new_bootscripts(self):
+        print "<<<<< Running test:  %s  >>>>>" % inspect.currentframe().f_code.co_name
         get_order_files = get_script_order_files(self._tmpdir, "servers-nat")
         get_precedence_walk_files = precedence_walk(self._repodir, "boot-scripts/order.yaml", "servers-nat")
 
@@ -316,6 +317,7 @@ class OldAndNewCompareTests(CompositeTests):
 
 class RunBootScripts(CompositeTests):
     def test_run_all_boot_scripts(self):
+        print "<<<<< Running test:  %s  >>>>>" % inspect.currentframe().f_code.co_name
         load_configs(self._agent_conf)
 
         server_name = "servers-nat"
@@ -339,9 +341,9 @@ def suite():
         'test_servers_vpn_bootscripts_overrides',
         'test_general_overrides'
     ]
-    return unittest.TestSuite(map(BootscriptsTest, tests))
+    return unittest.TestSuite(map(OverridesTests, tests))
 
-    [compare_tests] = ['test_old_new_bootscripts']
+    [compare_tests] = ['test_old_vs_new_bootscripts']
     return unittest.TestSuite(map(OldAndNewCompareTests, compare_tests))
 
     [run_script_tests] = ['run_all_bootscripts']
