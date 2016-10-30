@@ -334,20 +334,24 @@ class RunBootScripts(CompositeTests):
 
 
 def suite():
-    tests = [
+    test_suite = unittest.TestSuite()
+
+    overrides_tests = [
         'test_servers_nat_bootscripts',
         'test_servers_vpn_bootscripts',
         'test_servers_nat_bootscripts_overrides',
         'test_servers_vpn_bootscripts_overrides',
         'test_general_overrides'
     ]
-    return unittest.TestSuite(map(OverridesTests, tests))
+    test_suite.addTests(map(OverridesTests, overrides_tests))
 
-    [compare_tests] = ['test_old_vs_new_bootscripts']
-    return unittest.TestSuite(map(OldAndNewCompareTests, compare_tests))
+    compare_tests = ['test_old_vs_new_bootscripts']
+    test_suite.addTests(map(OldAndNewCompareTests, compare_tests))
 
-    [run_script_tests] = ['run_all_bootscripts']
-    return unittest.TestSuite(map(RunBootScripts, run_script_tests))
+    run_script_tests = ['run_all_bootscripts']
+    test_suite.addTests(map(RunBootScripts, run_script_tests))
+
+    return test_suite
 
 
 if __name__ == '__main__':
