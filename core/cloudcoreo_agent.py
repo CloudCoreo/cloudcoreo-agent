@@ -460,10 +460,7 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
     # PLA-513 changes the method used to get files
     # script_order_files = get_script_order_files(repo_dir, server_name_dir)
     bootscripts_name = "boot-scripts/order.yaml"
-    # First apply any overrides on this
-    override = True
-    precedence_walk(repo_dir, bootscripts_name, server_name_dir, override)
-    # Then get the scripts to run now that overrides have been applied
+    # Get the scripts to run assuming that overrides have already been applied earlier
     override = False
     script_order_files = precedence_walk(repo_dir, bootscripts_name, server_name_dir, override)
 
@@ -518,7 +515,11 @@ def bootstrap():
     key = get_coreo_key()
     clone_for_asi(asi['branch'], asi['revision'], appstack['gitUrl'], key['keyMaterial'],
                   OPTIONS_FROM_CONFIG_FILE.work_dir)
-    #  run_all_boot_scripts("#{DaemonKit.arguments.options[:work_dir]}", "#{DaemonKit.arguments.options[:server_name]}")
+
+    # First apply any overrides in the repo for all files
+    override = True
+    precedence_walk(OPTIONS_FROM_CONFIG_FILE.work_dir, "", "", override)
+
     run_all_boot_scripts(OPTIONS_FROM_CONFIG_FILE.work_dir, OPTIONS_FROM_CONFIG_FILE.server_name)
 
 
