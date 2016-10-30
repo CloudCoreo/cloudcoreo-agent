@@ -1,0 +1,154 @@
+overrides: files in the overrides directories are copied to the path of the override file relative to the parent of the override directory.
+Paths that don't exist are created.
+
+All files that will override (this is not in precedence order):
+tyax:repo mattes$ find . -iregex ".*/overrides/.*" -type f
+./extends/stack-vpc-private-only/overrides/README.md
+./overrides/README.md
+./overrides/root-file.txt
+./overrides/stack-servers-nat/extends/boot-scripts/nb1o.sh
+./overrides/stack-servers-nat/extends/boot-scripts/order.yaml
+./overrides/stack-servers-nat/extra-files/data/data1.txt
+./overrides/stack-servers-nat/extra-files/images/image1.txt
+./overrides/stack-servers-vpn/extends/boot-scripts/order.yaml
+./overrides/stack-servers-vpn/extends/overrides/extends/boot-scripts/order.yaml
+./stack-servers-nat/extends/overrides/README.md
+./stack-servers-nat/overrides/README.md
+./stack-servers-vpn/extends/overrides/boot-scripts/order.yaml
+./stack-servers-vpn/extends/overrides/extends/boot-scripts/order.yaml
+./stack-servers-vpn/extends/overrides/README.md
+./stack-servers-vpn/extends/overrides/stack-servers-plus/boot-scripts/order.yaml
+./stack-servers-vpn/extends/stack-servers-plus/overrides/boot-scripts/order.yaml
+./stack-servers-vpn/overrides/extends/boot-scripts/order.yaml
+./stack-servers-vpn/overrides/extends/overrides/boot-scripts/order.yaml
+./stack-servers-vpn/overrides/extends/overrides/extends/boot-scripts/order.yaml
+./stack-servers-vpn/overrides/extends/overrides/stack-servers-plus/boot-scripts/order.yaml
+./stack-servers-vpn/overrides/operational-scripts/order.yaml
+./stack-servers-vpn/overrides/README.md
+
+
+Since boot-scripts/order.yaml files are handled in a precedence ordering tests, I'm going to remove boot-scripts/order.yaml files here
+
+tyax:repo mattes$ find . -iregex ".*/overrides/.*" ! -iregex ".*/boot-scripts/order.yaml" -type f
+./extends/stack-vpc-private-only/overrides/README.md
+./overrides/README.md
+./overrides/root-file.txt
+./overrides/stack-servers-nat/extends/boot-scripts/nb1o.sh
+./overrides/stack-servers-nat/extra-files/data/data1.txt
+./overrides/stack-servers-nat/extra-files/images/image1.txt
+./stack-servers-nat/extends/overrides/README.md
+./stack-servers-nat/overrides/README.md
+./stack-servers-vpn/extends/overrides/README.md
+./stack-servers-vpn/overrides/extends/overrides/boot-scripts/vb2oo.sh
+./stack-servers-vpn/overrides/operational-scripts/order.yaml
+./stack-servers-vpn/overrides/README.md
+
+# These are the target locations for the overridden files
+./extends/stack-vpc-private-only/README.md
+./README.md
+./root-file.txt
+./stack-servers-nat/extends/boot-scripts/nb1o.sh
+./stack-servers-nat/extra-files/data/data1.txt
+./stack-servers-nat/extra-files/images/image1.txt
+./stack-servers-nat/extends/README.md
+./stack-servers-nat/README.md
+./stack-servers-vpn/extends/README.md
+./stack-servers-vpn/extends/overrides/boot-scripts/vb2oo.sh
+./stack-servers-vpn/operational-scripts/order.yaml
+./stack-servers-vpn/README.md
+
+# Some of the target files do not exist before overrides occur
+
+tyax:repo mattes$ ls -1 extends/stack-vpc-private-only/README.md README.md root-file.txt stack-servers-nat/extends/boot-scripts/nb1o.sh stack-servers-nat/extra-files/data/data1.txt stack-servers-nat/extra-files/images/image1.txt stack-servers-nat/extends/README.md stack-servers-nat/README.md stack-servers-vpn/extends/README.md stack-servers-vpn/extends/overrides/boot-scripts/vb2oo.sh stack-servers-vpn/operational-scripts/order.yaml stack-servers-vpn/README.md
+
+ls: extends/stack-vpc-private-only/README.md: No such file or directory
+ls: README.md: No such file or directory
+ls: root-file.txt: No such file or directory
+ls: stack-servers-nat/README.md: No such file or directory
+ls: stack-servers-nat/extends/boot-scripts/nb1o.sh: No such file or directory
+ls: stack-servers-nat/extra-files/data/data1.txt: No such file or directory
+ls: stack-servers-nat/extra-files/images/image1.txt: No such file or directory
+ls: stack-servers-vpn/README.md: No such file or directory
+ls: stack-servers-vpn/extends/overrides/boot-scripts/vb2oo.sh: No such file or directory
+
+stack-servers-nat/extends/README.md
+stack-servers-vpn/extends/README.md
+stack-servers-vpn/operational-scripts/order.yaml
+
+
+
+tyax:repo mattes$ tree -d
+.
+├── extends
+│   ├── extends
+│   │   ├── images
+│   │   └── services
+│   ├── images
+│   └── stack-vpc-private-only
+│       ├── extends
+│       │   ├── images
+│       │   └── services
+│       ├── overrides
+│       └── services
+├── operational-scripts
+├── overrides
+│   ├── stack-servers-nat
+│   │   ├── extends
+│   │   │   └── boot-scripts
+│   │   └── extra-files
+│   │       ├── data
+│   │       └── images
+│   └── stack-servers-vpn
+│       └── extends
+│           ├── boot-scripts
+│           └── overrides
+│               └── extends
+│                   └── boot-scripts
+├── services
+├── shutdown-scripts
+├── stack-servers-nat
+│   ├── extends
+│   │   ├── boot-scripts
+│   │   ├── images
+│   │   ├── operational-scripts
+│   │   ├── overrides
+│   │   ├── services
+│   │   └── shutdown-scripts
+│   ├── operational-scripts
+│   ├── overrides
+│   ├── services
+│   └── shutdown-scripts
+└── stack-servers-vpn
+    ├── boot-scripts
+    ├── extends
+    │   ├── boot-scripts
+    │   ├── extends
+    │   │   └── boot-scripts
+    │   ├── files
+    │   ├── overrides
+    │   │   ├── boot-scripts
+    │   │   ├── extends
+    │   │   │   └── boot-scripts
+    │   │   └── stack-servers-plus
+    │   │       └── boot-scripts
+    │   ├── services
+    │   └── stack-servers-plus
+    │       ├── boot-scripts
+    │       └── overrides
+    │           └── boot-scripts
+    ├── operational-scripts
+    ├── overrides
+    │   ├── extends
+    │   │   ├── boot-scripts
+    │   │   └── overrides
+    │   │       ├── boot-scripts
+    │   │       ├── extends
+    │   │       │   └── boot-scripts
+    │   │       └── stack-servers-plus
+    │   │           └── boot-scripts
+    │   └── operational-scripts
+    ├── services
+    └── shutdown-scripts
+
+70 directories
+

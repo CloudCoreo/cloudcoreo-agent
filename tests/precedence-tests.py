@@ -17,6 +17,7 @@ DEBUG = False
 # In general DEBUG_AGENT should be True to prevent scripts in the test_package from running
 DEBUG_AGENT = True
 
+
 class CompositeTests(unittest.TestCase):
 
     # global OPTIONS_FROM_CONFIG_FILE
@@ -141,9 +142,74 @@ class BootscriptsTest(CompositeTests):
         'overrides/stack-servers-vpn/extends/boot-scripts/order.yaml': 'vb2oooo'
     }
 
-    def bootscripts_check(self, lookfor, truth_files):
+    _truth_files_generic_before_override_dont_exist = [
+        'extends/stack-vpc-private-only/README.md',
+        'README.md',
+        'root-file.txt',
+        'stack-servers-nat/README.md',
+        'stack-servers-nat/extends/boot-scripts/nb1o.sh',
+        'stack-servers-nat/extra-files/data/data1.txt',
+        'stack-servers-nat/extra-files/images/image1.txt',
+        'stack-servers-vpn/README.md',
+        'stack-servers-vpn/extends/overrides/boot-scripts/vb2oo.sh'
+    ]
+    _truth_files_generic_before_override_exist = [
+        'stack-servers-nat/extends/README.md',
+        'stack-servers-vpn/extends/README.md',
+        'stack-servers-vpn/operational-scripts/order.yaml'
+    ]
+
+    _truth_files_generic_overrides = [
+        'extends/stack-vpc-private-only/overrides/README.md',
+        'overrides/README.md',
+        'overrides/root-file.txt',
+        'overrides/stack-servers-nat/extends/boot-scripts/nb1o.sh',
+        'overrides/stack-servers-nat/extra-files/data/data1.txt',
+        'overrides/stack-servers-nat/extra-files/images/image1.txt',
+        'stack-servers-nat/extends/overrides/README.md',
+        'stack-servers-nat/overrides/README.md',
+        'stack-servers-vpn/extends/overrides/README.md',
+        'stack-servers-vpn/overrides/extends/overrides/boot-scripts/vb2oo.sh',
+        'stack-servers-vpn/overrides/operational-scripts/order.yaml',
+        'stack-servers-vpn/overrides/README.md'
+    ]
+
+    _truth_files_generic_before_overrides_content = {
+        'stack-servers-nat/extends/README.md': 'overridden1',
+        'stack-servers-vpn/extends/README.md': 'overridden2',
+        'stack-servers-vpn/operational-scripts/order.yaml': 'stack-servers-vpn/operational-scripts',
+        'extends/stack-vpc-private-only/overrides/README.md': 'overrides1',
+        'overrides/README.md': 'overrides2',
+        'overrides/root-file.txt': 'moves to repo root',
+        'overrides/stack-servers-nat/extends/boot-scripts/nb1o.sh': '#/bin/bashecho "nb1o"',
+        'overrides/stack-servers-nat/extra-files/data/data1.txt': 'data1_text',
+        'overrides/stack-servers-nat/extra-files/images/image1.txt': 'image1_text',
+        'stack-servers-nat/extends/overrides/README.md': 'overrides3',
+        'stack-servers-nat/overrides/README.md': 'overrides4',
+        'stack-servers-vpn/extends/overrides/README.md': 'overrides5',
+        'stack-servers-vpn/overrides/extends/overrides/boot-scripts/vb2oo.sh': '#/bin/bashecho "vb2oo"',
+        'stack-servers-vpn/overrides/operational-scripts/order.yaml': 'stack-servers-vpn/overrides/operational-scripts',
+        'stack-servers-vpn/overrides/README.md': 'overrides6'
+    }
+
+    _truth_files_generic_after_overrides_content = {
+        'extends/stack-vpc-private-only/README.md': 'overrides1',
+        'README.md': 'overrides2',
+        'root-file.txt': 'moves to repo root',
+        'stack-servers-nat/README.md': 'overrides4',
+        'stack-servers-nat/extends/boot-scripts/nb1o.sh': '#/bin/bashecho "nb1o"',
+        'stack-servers-nat/extra-files/data/data1.txt': 'data1_text',
+        'stack-servers-nat/extra-files/images/image1.txt': 'image1_text',
+        'stack-servers-vpn/README.md': 'overrides6',
+        'stack-servers-vpn/extends/overrides/boot-scripts/vb2oo.sh': '#/bin/bashecho "vb2oo"',
+        'stack-servers-nat/extends/README.md': 'overrides3',
+        'stack-servers-vpn/extends/README.md': 'overrides5',
+        'stack-servers-vpn/operational-scripts/order.yaml': 'stack-servers-vpn/overrides/operational-scripts'
+    }
+
+    def bootscripts_check(self, server, truth_files):
         override = False
-        test_files = precedence_walk(self._repodir, "boot-scripts/order.yaml", lookfor, override, DEBUG)
+        test_files = precedence_walk(self._repodir, "boot-scripts/order.yaml", server, override, DEBUG)
 
         if DEBUG:
             print "--------- truth_files [%d] ----------" % len(truth_files)
@@ -169,13 +235,13 @@ class BootscriptsTest(CompositeTests):
         server = "servers-vpn"
         self.bootscripts_check(server, self._truth_files_vpn)
 
-    def overrides_check(self, lookfor, truth_files, truth_files_overrides, truth_files_content_hash):
+    def overrides_check(self, lookfor, server, truth_files, truth_files_overrides, truth_files_content_hash):
         if DEBUG:
             print "========= before overrides =========="
             self.file_dump(truth_files + truth_files_overrides)
 
         override = True
-        test_files = precedence_walk(self._repodir, "boot-scripts/order.yaml", lookfor, override, DEBUG)
+        test_files = precedence_walk(self._repodir, lookfor, server, override, DEBUG)
 
         if DEBUG:
             print "--------- truth_files_overrides [%d] ----------" % len(truth_files_overrides)
@@ -195,13 +261,43 @@ class BootscriptsTest(CompositeTests):
 
     def test_servers_nat_bootscripts_overrides(self):
         print "<<<<< Running test:  %s  >>>>>" % inspect.currentframe().f_code.co_name
+        lookfor = "boot-scripts/order.yaml"
         server = "servers-nat"
-        self.overrides_check(server, self._truth_files_nat, self._truth_files_nat_overrides, self._truth_files_nat_overrides_content)
+        self.overrides_check(lookfor, server, self._truth_files_nat, self._truth_files_nat_overrides, self._truth_files_nat_overrides_content)
 
     def test_servers_vpn_bootscripts_overrides(self):
         print "<<<<< Running test:  %s  >>>>>" % inspect.currentframe().f_code.co_name
+        lookfor = "boot-scripts/order.yaml"
         server = "servers-vpn"
-        self.overrides_check(server, self._truth_files_vpn, self._truth_files_vpn_overrides, self._truth_files_vpn_overrides_content)
+        self.overrides_check(lookfor, server, self._truth_files_vpn, self._truth_files_vpn_overrides, self._truth_files_vpn_overrides_content)
+
+    def test_general_overrides(self):
+        print "<<<<< Running test:  %s  >>>>>" % inspect.currentframe().f_code.co_name
+
+        before_overrides_compare_files = self.compare_file_contents_to_str(self._truth_files_generic_before_overrides_content)
+        [self.assertTrue(item) for item in before_overrides_compare_files]
+        if DEBUG:
+            print before_overrides_compare_files
+
+        truth_files = self._truth_files_nat_overrides + self._truth_files_vpn_overrides + self._truth_files_generic_overrides
+
+        lookfor = ""
+        server = ""
+        override = True
+        test_files = precedence_walk(self._repodir, lookfor, server, override, DEBUG)
+
+        self.assertEqual(len(truth_files), len(test_files), "before and after did not return same number of files!")
+
+        if DEBUG:
+            print "--------- truth_files [%d] ----------" % len(truth_files)
+            print sorted(truth_files)
+            print "--------- test_files [%d] ----------" % len(test_files)
+            print sorted([re.sub('.*/repo/', '', entry) for entry in test_files])
+
+        after_overrides_compare_files = self.compare_file_contents_to_str(self._truth_files_generic_after_overrides_content)
+        [self.assertTrue(item) for item in after_overrides_compare_files]
+        if DEBUG:
+            print after_overrides_compare_files
 
 
 class OldAndNewCompareTests(CompositeTests):
@@ -240,7 +336,8 @@ def suite():
         'test_servers_nat_bootscripts',
         'test_servers_vpn_bootscripts',
         'test_servers_nat_bootscripts_overrides',
-        'test_servers_vpn_bootscripts_overrides'
+        'test_servers_vpn_bootscripts_overrides',
+        'test_general_overrides'
     ]
     return unittest.TestSuite(map(BootscriptsTest, tests))
 
