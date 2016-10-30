@@ -30,7 +30,6 @@ logging.basicConfig()
 DEFAULT_CONFIG_FILE_LOCATION = '/etc/cloudcoreo/agent.conf'
 # globals for caching
 MY_AZ = None
-version = '0.1.15'
 COMPLETE_STRING = "COREO::BOOTSTRAP::complete"
 OPTIONS_FROM_CONFIG_FILE = None
 LOCK_FILE_PATH = ''
@@ -127,7 +126,7 @@ def create_message(message_type, message, message_id = MESSAGE_NEXT_NONE):
         "header": {
             "publisher": {
                 "publisher_type": "agent",
-                "publisher_version": version,
+                "publisher_version": __version__,
                 "publisher_id": OPTIONS_FROM_CONFIG_FILE.agent_uuid,
                 "publisher_access_id": OPTIONS_FROM_CONFIG_FILE.coreo_access_id
             },
@@ -634,7 +633,7 @@ def start_agent():
 
     load_configs()
     if OPTIONS_FROM_CONFIG_FILE.version:
-        print "%s" % version
+        print "%s" % __version__
         terminate_script()
 
     global SQS_CLIENT, SNS_CLIENT
@@ -666,7 +665,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Parse version argument')
     parser.add_argument('--version', action='store_true', help="Get script version")
     if parser.parse_args().version:
-        print "%s" % version
+        print "%s" % __version__
         terminate_script()
 
     start_agent()
