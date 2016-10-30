@@ -15,6 +15,7 @@ import argparse
 from tempfile import mkstemp
 
 import os
+import shutil
 import uuid
 import re
 import requests
@@ -29,7 +30,6 @@ logging.basicConfig()
 DEFAULT_CONFIG_FILE_LOCATION = '/etc/cloudcoreo/agent.conf'
 # globals for caching
 MY_AZ = None
-version = '0.1.15'
 COMPLETE_STRING = "COREO::BOOTSTRAP::complete"
 OPTIONS_FROM_CONFIG_FILE = None
 LOCK_FILE_PATH = ''
@@ -38,6 +38,10 @@ PROCESSED_SQS_MESSAGES_DICT_PATH = '/tmp/processed-messages.txt'
 dt = time.time()
 LOGS = []
 MESSAGE_NEXT_NONE = -1
+
+# sort directories by extends, stack-, overrides, services, shutdown-, boot-, operational-
+PRECEDENCE_ORDER = {'t': 0, 'e': 1, 's': 2, 'p': 3, 'v': 4, 'o': 5, 'b': 6}
+
 
 def log(log_text):
     log_text = str(log_text)
@@ -91,8 +95,10 @@ def get_config_path():
     return config_file_location
 
 
-def get_configs():
+def get_configs(conffile=''):
     config_file_location = get_config_path()
+    if conffile:
+        config_file_location = conffile
     print '*Reading configs from ' + config_file_location
     with open(config_file_location, 'r') as ymlfile:
         configs = yaml.load(ymlfile)
@@ -120,7 +126,7 @@ def create_message(message_type, message, message_id = MESSAGE_NEXT_NONE):
         "header": {
             "publisher": {
                 "publisher_type": "agent",
-                "publisher_version": version,
+                "publisher_version": __version__,
                 "publisher_id": OPTIONS_FROM_CONFIG_FILE.agent_uuid,
                 "publisher_access_id": OPTIONS_FROM_CONFIG_FILE.coreo_access_id
             },
@@ -316,7 +322,9 @@ def get_environment_dict():
             environment[var] = value.get('default', '')
     return environment
 
-
+## <DEPRECATED_CODE>
+## PLA-513 deprecates get_script_order_files
+## This code should remain here for backwards compatibility testing
 ######################################################################
 # this is all to deal with overriding service config.rb files
 ######################################################################
@@ -344,6 +352,71 @@ def get_script_order_files(root_dir, server_name):
     order_files.sort(key=len, reverse=True)
     log("order_files %s" % order_files)
     return order_files
+## </DEPRECATED_CODE>
+
+
+def precedence_walk(start_dir, look_for, stackdash="", override=False, debug=False):
+    collected = []
+    walk_params = next(os.walk(start_dir, topdown=True))
+    for dirname in sorted(walk_params[1], key=lambda word: [PRECEDENCE_ORDER.get(c, ord(c)) for c in word]):
+        full_path = os.path.join(start_dir, dirname)
+        debug_path = re.sub('.*/repo', 'repo', start_dir)
+        if ".git" in dirname:
+            if debug: log("skipping git directory %s/%s : git" % (debug_path, dirname))
+            continue
+        elif "extends" in dirname:
+            if debug: log("got %s/%s : extends" % (debug_path, dirname))
+            collected.extend(precedence_walk(full_path, look_for, stackdash, override, debug))
+        elif "stack-" in dirname:
+            if debug: log("got %s/%s : stack-" % (debug_path, dirname))
+            collected.extend(precedence_walk(full_path, look_for, stackdash, override, debug))
+        elif "overrides" in dirname and override:
+            if debug: log("got %s/%s : overrides" % (debug_path, dirname))
+            collected.extend(precedence_walk(full_path, look_for, stackdash, override, debug))
+        elif override:
+            if debug: log("got %s/%s : any directory for override" % (debug_path, dirname))
+            collected.extend(precedence_walk(full_path, look_for, stackdash, override, debug))
+        if debug:
+            if "services" in dirname:
+                log("got %s/%s : services" % (debug_path, dirname))
+            elif "boot-scripts" in dirname:
+                log("got %s/%s : boot-scripts" % (debug_path, dirname))
+            elif "operational-scripts" in dirname:
+                log("got %s/%s : operational-scripts" % (debug_path, dirname))
+            elif "shutdown-scripts" in dirname:
+                log("got %s/%s : shutdown-scripts" % (debug_path, dirname))
+
+        for filename in os.listdir(full_path):
+            debug_path = re.sub('.*/repo', 'repo', full_path)
+            if debug:
+                log("considering filename: %s/%s" % (debug_path, filename))
+            full_path_filename = os.path.join(full_path, filename)
+            # Only consider files, not directories
+            if not os.path.isfile(full_path_filename):
+                if debug:
+                    log("not a file: %s/%s" % (debug_path, filename))
+                continue
+            contains = look_for in full_path_filename and stackdash in full_path_filename
+            if override and contains and "overrides" in full_path_filename:
+                collected.append(full_path_filename)
+                # Just replace first instance of overrides to do the copy
+                dest = re.sub("overrides", "", full_path_filename, 1)
+                if not os.path.isfile(dest):
+                    dest = os.path.dirname(dest)
+                    if not os.path.isdir(dest):
+                        if debug: log("creating directory: %s" % re.sub('.*/repo', 'repo', dest))
+                        os.makedirs(dest)
+                shutil.copy(full_path_filename, dest)
+                if debug:
+                    command = "cp %s %s" % (re.sub('.*/repo', 'repo', full_path_filename), re.sub('.*/repo', 'repo', dest))
+                    log("---> command: %s" % command)
+            elif not override and contains:
+                if debug: log("collecting file: %s" % full_path_filename)
+                collected.append(full_path_filename)
+            elif debug:
+                log("skipping file: %s/%s" % (debug_path, filename))
+
+    return collected
 
 
 def set_env(env_list):
@@ -380,12 +453,17 @@ def run_cmd(work_dir, *args):
 
 
 def run_all_boot_scripts(repo_dir, server_name_dir):
-    # env = {}
     env = get_environment_dict()
-    # script_order_files = []
-    script_order_files = get_script_order_files(repo_dir, server_name_dir)
     log("setting env [%s]" % env)
 
+    # PLA-513 changes the method used to get files
+    # script_order_files = get_script_order_files(repo_dir, server_name_dir)
+    bootscripts_name = "boot-scripts/order.yaml"
+    # Get the scripts to run assuming that overrides have already been applied earlier
+    override = False
+    script_order_files = precedence_walk(repo_dir, bootscripts_name, server_name_dir, override)
+
+    num_order_files_processed = 0
     full_run_error = None
     for f in script_order_files:
         log("loading file [%s]" % f)
@@ -394,13 +472,12 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
         if my_doc is None or my_doc['script-order'] is None:
             continue
         log("[%s]" % my_doc['script-order'])
-        # order = YAML.load_file(f)
-        # order['script-order'].each { |script|
+        num_order_files_processed += 1
         for script in my_doc['script-order']:
-            # full_path = File.join(File.dirname(f), script)
             full_path = os.path.join(os.path.dirname(f), script)
             log("running script [%s]" % full_path)
-            os.chmod(full_path, stat.S_IEXEC)
+            if not OPTIONS_FROM_CONFIG_FILE.debug:
+                os.chmod(full_path, stat.S_IEXEC)
             set_env(env)
             if full_path in open(LOCK_FILE_PATH, 'r').read():
                 log("skipping run of [%s]. Already run" % script)
@@ -408,8 +485,10 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
             # we need to check the error and output if we are debugging or not
             err = None
             out = None
-            if not OPTIONS_FROM_CONFIG_FILE.debug:
-                err = run_cmd(os.path.dirname(full_path), "./%s" % os.path.basename(full_path))
+            command = "./%s" % os.path.basename(full_path)
+            if OPTIONS_FROM_CONFIG_FILE.debug:
+                command = "date"
+            err = run_cmd(os.path.dirname(full_path), command)
             if not err:
                 with open(LOCK_FILE_PATH, 'a') as lockFile:
                     lockFile.write("%s\n" % full_path)
@@ -425,6 +504,8 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
         with open(LOCK_FILE_PATH, 'a') as lockFile:
             lockFile.write(COMPLETE_STRING)
 
+    return num_order_files_processed
+
 
 def bootstrap():
     log("getting response from server")
@@ -433,8 +514,13 @@ def bootstrap():
     key = get_coreo_key()
     clone_for_asi(asi['branch'], asi['revision'], appstack['gitUrl'], key['keyMaterial'],
                   OPTIONS_FROM_CONFIG_FILE.work_dir)
-    #  run_all_boot_scripts("#{DaemonKit.arguments.options[:work_dir]}", "#{DaemonKit.arguments.options[:server_name]}")
-    run_all_boot_scripts(OPTIONS_FROM_CONFIG_FILE.work_dir, OPTIONS_FROM_CONFIG_FILE.server_name)
+
+    # First apply any overrides in the repo for all files
+    repo_dir = os.path.join(OPTIONS_FROM_CONFIG_FILE.work_dir, "repo")
+    override = True
+    precedence_walk(repo_dir, "", "", override)
+
+    run_all_boot_scripts(repo_dir, OPTIONS_FROM_CONFIG_FILE.server_name)
 
 
 def send_logs_to_webapp():
@@ -532,19 +618,23 @@ def recursive_daemon():
         recursive_daemon()
 
 
-def start_agent():
-    print '*Starting agent... Version ' + __version__
-
+def load_configs(conffile=''):
     global OPTIONS_FROM_CONFIG_FILE
-    OPTIONS_FROM_CONFIG_FILE = get_configs()
-    if OPTIONS_FROM_CONFIG_FILE.version:
-        print "%s" % version
-        terminate_script()
+    OPTIONS_FROM_CONFIG_FILE = get_configs(conffile)
 
     # lets set up a lock file so we don't rerun on bootstrap... this will
     # also allow people to remove the lock file to rerun everything
     global LOCK_FILE_PATH
     LOCK_FILE_PATH = "%s/bootstrap.lock" % OPTIONS_FROM_CONFIG_FILE.work_dir
+
+
+def start_agent():
+    print '*Starting agent... Version ' + __version__
+
+    load_configs()
+    if OPTIONS_FROM_CONFIG_FILE.version:
+        print "%s" % __version__
+        terminate_script()
 
     global SQS_CLIENT, SNS_CLIENT
 
@@ -571,10 +661,11 @@ def start_agent():
 
     recursive_daemon()
 
-parser = argparse.ArgumentParser(description='Parse version argument')
-parser.add_argument('--version', action='store_true', help="Get script version")
-if parser.parse_args().version:
-    print "%s" % version
-    terminate_script()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Parse version argument')
+    parser.add_argument('--version', action='store_true', help="Get script version")
+    if parser.parse_args().version:
+        print "%s" % __version__
+        terminate_script()
 
-start_agent()
+    start_agent()
