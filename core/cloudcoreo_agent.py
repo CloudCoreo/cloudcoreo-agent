@@ -459,11 +459,15 @@ def run_cmd(work_dir, *args):
     log("  script return code: [%d]" % proc_ret_code)
 
     log("  --- begin stdout ---")
-    log(proc_stdout)
+    if proc_stdout:
+        log(proc_stdout)
     log("  --- end stdout ---")
     log("  --- begin stderr ---")
-    log(proc_stderr)
+    if proc_stderr:
+        log(proc_stderr)
     log("  --- end stderr ---")
+
+    send_logs_to_webapp()
 
     return proc_ret_code
 
