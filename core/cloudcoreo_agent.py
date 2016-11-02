@@ -144,7 +144,7 @@ def publish_agent_online():
     stringified_json = json.dumps(message)
     print "uuid message: %s" % stringified_json
     if not OPTIONS_FROM_CONFIG_FILE.debug:
-        publish_to_sns(stringified_json, 'AGENT_ONLINE', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+        publish_to_sns(stringified_json, 'AGENT_INFO', OPTIONS_FROM_CONFIG_FILE.topic_arn)
 
 
 def get_availability_zone():
