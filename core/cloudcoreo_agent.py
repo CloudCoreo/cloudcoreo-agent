@@ -38,6 +38,8 @@ PROCESSED_SQS_MESSAGES_DICT_PATH = '/tmp/processed-messages.txt'
 dt = time.time()
 LOGS = []
 MESSAGE_NEXT_NONE = -1
+MAX_EXCEPTION_WAIT_DELAY = 60
+
 
 # sort directories by extends, stack-, overrides, services, shutdown-, boot-, operational-
 PRECEDENCE_ORDER = {'t': 0, 'e': 1, 's': 2, 'p': 3, 'v': 4, 'o': 5, 'b': 6}
@@ -316,6 +318,7 @@ def get_environment_dict():
             environment[var] = value.get('default', '')
     return environment
 
+
 ## <DEPRECATED_CODE>
 ## PLA-513 deprecates get_script_order_files
 ## This code should remain here for backwards compatibility testing
@@ -428,22 +431,41 @@ def set_env(env_list):
 
 
 def run_cmd(work_dir, *args):
-    print("cwd=%s" % work_dir)
-    print("running command: %s" % str(list(args)))
+    log("running command: %s" % str(list(args)))
+    log("cwd=%s" % work_dir)
+
+    proc = subprocess.Popen(
+        list(args),
+        cwd=work_dir,
+        shell=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE)
+
+    (proc_stdout, proc_stderr) = proc.communicate()
+    proc_ret_code = proc.returncode
+
     with open(OPTIONS_FROM_CONFIG_FILE.log_file, 'a') as log_file:
-        proc_ret_code = subprocess.call(list(args),
-                                        cwd=work_dir,
-                                        shell=False,
-                                        stdout=log_file,
-                                        stderr=log_file)
+        log_file.write(proc_stdout)
 
     if proc_ret_code == 0:
-        # return the return code
         log("Success running script [%s]" % list(args))
-        log("  returning rc [%d]" % proc_ret_code)
-        return None
     else:
-        return proc_ret_code
+        log("Error running script [%s]" % list(args))
+
+    log("  script return code: [%d]" % proc_ret_code)
+
+    log("  --- begin stdout ---")
+    if proc_stdout:
+        log(proc_stdout)
+    log("  --- end stdout ---")
+    log("  --- begin stderr ---")
+    if proc_stderr:
+        log(proc_stderr)
+    log("  --- end stderr ---")
+
+    send_logs_to_webapp()
+
+    return proc_ret_code
 
 
 def run_all_boot_scripts(repo_dir, server_name_dir):
@@ -476,9 +498,6 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
             if full_path in open(LOCK_FILE_PATH, 'r').read():
                 log("skipping run of [%s]. Already run" % script)
                 continue
-            # we need to check the error and output if we are debugging or not
-            err = None
-            out = None
             command = "./%s" % os.path.basename(full_path)
             if OPTIONS_FROM_CONFIG_FILE.debug:
                 command = "date"
@@ -486,12 +505,8 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
             if not err:
                 with open(LOCK_FILE_PATH, 'a') as lockFile:
                     lockFile.write("%s\n" % full_path)
-                with open(OPTIONS_FROM_CONFIG_FILE.log_file, 'r') as log_file:
-                    out = log_file.read()
-                    log(out)
             else:
                 full_run_error = err
-                log(err)
 
     # if we have not received any errors for the whole run, lets mark the bootstrap lock as complete
     if not full_run_error:
@@ -585,31 +600,36 @@ def run_script(message_body):
 
 # TODO add PROCESSED_SQS_MESSAGES clearness
 
+def main_loop():
+    delay = 1
+    while True:
+        try:
+            if not os.path.isfile(LOCK_FILE_PATH):
+                # touch the bootstrap lock file to indicate we have started to run through it
+                with open(LOCK_FILE_PATH, 'a'):
+                    os.utime(LOCK_FILE_PATH, None)
+            if COMPLETE_STRING not in open(LOCK_FILE_PATH, 'r').read():
+                bootstrap()
 
-def recursive_daemon():
-    try:
-        if not os.path.isfile(LOCK_FILE_PATH):
-            # touch the bootstrap lock file to indicate we have started to run through it
-            with open(LOCK_FILE_PATH, 'a'):
-                os.utime(LOCK_FILE_PATH, None)
-        if COMPLETE_STRING not in open(LOCK_FILE_PATH, 'r').read():
-            bootstrap()
+            sqs_response = get_sqs_messages(OPTIONS_FROM_CONFIG_FILE.queue_url)
+            if not sqs_response:
+                raise ValueError("Error while getting SQS messages.")
+            if u'Messages' in sqs_response:
+                process_incoming_sqs_messages(sqs_response)
+            if len(LOGS):
+                send_logs_to_webapp()
+            # success!
+            delay = 1
+        except Exception as ex:
+            log("Exception caught: [%s]" % str(ex))
+            log(traceback.format_exc())
+            # double the delay up to max
+            if delay < MAX_EXCEPTION_WAIT_DELAY:
+                delay *= 2
+            if OPTIONS_FROM_CONFIG_FILE.debug:
+                terminate_script()
 
-        sqs_response = get_sqs_messages(OPTIONS_FROM_CONFIG_FILE.queue_url)
-        if not sqs_response:
-            raise ValueError("Error while getting SQS messages.")
-        if u'Messages' in sqs_response:
-            process_incoming_sqs_messages(sqs_response)
-        if len(LOGS):
-            send_logs_to_webapp()
-    except Exception as ex:
-        log("Exception caught: [%s]" % str(ex))
-        log(traceback.format_exc())
-        if OPTIONS_FROM_CONFIG_FILE.debug:
-            terminate_script()
-            # TODO may be we need to add some time.sleep before restarting a loop?
-    finally:
-        recursive_daemon()
+        time.sleep(delay)
 
 
 def load_configs(conffile=''):
@@ -653,7 +673,7 @@ def start_agent():
     PROCESSED_SQS_MESSAGES = read_processed_messages_from_file()
     print PROCESSED_SQS_MESSAGES
 
-    recursive_daemon()
+    main_loop()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Parse version argument')
