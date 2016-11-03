@@ -27,16 +27,16 @@ class CompositeTests(unittest.TestCase):
         tar.extractall(self._tmpdir)
         tar.close()
 
-        self._workdir = os.path.join(self._tmpdir, self._test_package.split("-")[0])
+        asi = self._test_package.split("-")[0]
+        self._workdir = os.path.join(self._tmpdir, asi)
         self._repodir = os.path.join(self._workdir, "repo")
         self._agent_conf = os.path.join(self._tmpdir, "agent.conf")
 
-        shutil.copy("testdata/agent.conf", self._agent_conf)
+        shutil.copy("testdata/agent.conf-%s" % asi, self._agent_conf)
 
         with open(self._agent_conf, 'r') as ymlfile:
             configs = yaml.load(ymlfile)
 
-        # Save agent_uuid to config file
         with open(self._agent_conf, 'w') as ymlfile:
             configs['work_dir'] = self._workdir
             configs['debug'] = DEBUG_AGENT
@@ -310,14 +310,13 @@ class OldAndNewCompareTests(CompositeTests):
 
         print "--------- get_order_files [%d] ----------" % len(get_order_files)
         print [re.sub('.*/repo/', '', entry) for entry in get_order_files]
-        print "--------- get_precedence_walk_files [%d] ----------"  % len(get_precedence_walk_files)
+        print "--------- get_precedence_walk_files [%d] ----------" % len(get_precedence_walk_files)
         print [re.sub('.*/repo/', '', entry) for entry in get_precedence_walk_files]
 
         self.assertEqual(len(get_order_files), len(get_precedence_walk_files), "before and after did not return same number of files!")
 
 
 class RunBootScripts(CompositeTests):
-
     _test_package = "57a1fa37c514992cf3958242-precedence-test-data-old-branch-model"
 
     def test_run_all_boot_scripts(self):
@@ -337,6 +336,14 @@ class RunBootScripts(CompositeTests):
         self.assertEqual(num_vpn_order_files, num_expected, "expected to run %d script for %s" % (num_expected, server_name))
 
 
+class OperationalScripts(CompositeTests):
+    _test_package = "581a445b1f84592c0b18c7ce-simple-ec2-new-branch-model"
+
+    def test_find_op_scripts(self):
+        print "<<<<< Running test:  %s  >>>>>" % inspect.currentframe().f_code.co_name
+        load_configs(self._agent_conf)
+
+
 def suite():
     test_suite = unittest.TestSuite()
 
@@ -354,6 +361,9 @@ def suite():
 
     run_script_tests = ['run_all_bootscripts']
     test_suite.addTests(map(RunBootScripts, run_script_tests))
+
+    run_ops_script_tests = ['find_op_scripts']
+    test_suite.addTests(map(OperationalScripts, run_ops_script_tests))
 
     return test_suite
 
