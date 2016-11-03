@@ -22,6 +22,7 @@ import requests
 import stat
 import sys
 import yaml
+import socket
 from core import __version__
 
 SQS_GET_MESSAGES_SLEEP_TIME = 10
@@ -62,12 +63,13 @@ def read_processed_messages_from_file():
 
 
 def publish_to_sns(message_text, subject, topic_arn):
-    sns_response = SNS_CLIENT.publish(
-        TopicArn=topic_arn,
-        Subject=subject,
-        Message=message_text
-    )
-    return sns_response
+    if not OPTIONS_FROM_CONFIG_FILE.debug:
+        sns_response = SNS_CLIENT.publish(
+            TopicArn=topic_arn,
+            Subject=subject,
+            Message=json.dumps(message_text)
+        )
+        return sns_response
 
 
 def get_sqs_messages(queue_url):
@@ -123,7 +125,7 @@ def set_agent_uuid():
     log("OPTIONS.agent_uuid: %s" % OPTIONS_FROM_CONFIG_FILE.agent_uuid)
 
 
-def create_message(message_type, message):
+def create_message_template(message_type, data):
     message = {
         "header": {
             "publisher": {
@@ -135,18 +137,46 @@ def create_message(message_type, message):
         },
         "body": {
             "message_type": message_type,
-            "message": message
+            "data": data
         }
     }
     return message
 
 
 def publish_agent_online():
-    message = create_message("agent_online", "online")
-    stringified_json = json.dumps(message)
-    print "uuid message: %s" % stringified_json
-    if not OPTIONS_FROM_CONFIG_FILE.debug:
-        publish_to_sns(stringified_json, 'AGENT_INFO', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+    message_data = {
+        "server_name": OPTIONS_FROM_CONFIG_FILE.server_name,
+        "namespace": OPTIONS_FROM_CONFIG_FILE.namespace,
+        "run_id": OPTIONS_FROM_CONFIG_FILE.run_id,
+        "hostname": socket.gethostname()
+    }
+    message = create_message_template("AGENT_ONLINE", message_data)
+    publish_to_sns(message, 'AGENT_INFO', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+
+
+def publish_agent_heartbeat():
+    message_data = {
+        "load": os.getloadavg()
+    }
+    message = create_message_template("AGENT_HEARTBEAT", message_data)
+    publish_to_sns(message, 'AGENT_INFO', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+
+
+def publish_script_result(script_name, script_return_code):
+    message_data = {
+        "script_name": script_name,
+        "return_code": script_return_code
+    }
+    message = create_message_template("SCRIPT_RESULT", message_data)
+    publish_to_sns(message, 'AGENT_INFO', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+
+
+def publish_op_scripts(op_scripts):
+    message_data = {
+        "scripts": op_scripts
+    }
+    message = create_message_template("OP_SCRIPTS", message_data)
+    publish_to_sns(message, 'AGENT_INFO', OPTIONS_FROM_CONFIG_FILE.topic_arn)
 
 
 def get_availability_zone():
@@ -529,15 +559,14 @@ def bootstrap():
     override = True
     precedence_walk(repo_dir, "", "", override)
 
+    # This should be last in bootstrap() because if no errors, the bootstrap file is marked completed
     run_all_boot_scripts(repo_dir, OPTIONS_FROM_CONFIG_FILE.server_name)
 
 
 def send_logs_to_webapp():
-    message_with_logs_for_webapp = create_message("script_logs", LOGS)
-    stringified_json = json.dumps(message_with_logs_for_webapp)
-    print 'stringified_json: ' + stringified_json
+    message_with_logs_for_webapp = create_message_template("SCRIPT_LOGS", LOGS)
     try:
-        publish_to_sns(stringified_json, 'AGENT_LOGS', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+        publish_to_sns(message_with_logs_for_webapp, 'AGENT_LOGS', OPTIONS_FROM_CONFIG_FILE.topic_arn)
         del LOGS[:]
     except Exception as ex:
         log(ex)
