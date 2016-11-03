@@ -332,11 +332,7 @@ def git(ssh_wrapper, git_dir, *args):
 def get_environment_dict():
     environment = {}
     asi_vars = get_coreo_appstackinstance_config()
-    appstack = get_coreo_appstack()
-    appstack_vars = json.loads(
-        re.sub('\n', r'', unicodedata.normalize('NFKD', appstack['config']).encode('ascii', 'ignore')))
-    all_vars = {'variables': appstack_vars['variables']}
-    all_vars['variables'].update(asi_vars)
+    all_vars = {'variables': asi_vars}
     for var in all_vars['variables']:
         value = all_vars['variables'][var]
         # if ! value['value'].nil? then
@@ -559,8 +555,13 @@ def bootstrap():
     override = True
     precedence_walk(repo_dir, "", "", override)
 
+    server_name = OPTIONS_FROM_CONFIG_FILE.server_name
+    # if we have no layered server, run the boot-scripts in repo/.
+    if server_name == OPTIONS_FROM_CONFIG_FILE.namespace.replace('ROOT::', '').lower():
+        server_name = ""
+
     # This should be last in bootstrap() because if no errors, the bootstrap file is marked completed
-    run_all_boot_scripts(repo_dir, OPTIONS_FROM_CONFIG_FILE.server_name)
+    run_all_boot_scripts(repo_dir, server_name)
 
 
 def send_logs_to_webapp():
