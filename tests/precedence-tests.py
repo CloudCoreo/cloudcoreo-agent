@@ -20,17 +20,14 @@ DEBUG_AGENT = True
 
 class CompositeTests(unittest.TestCase):
 
-    # global OPTIONS_FROM_CONFIG_FILE
-    # OPTIONS_FROM_CONFIG_FILE = get_configs()
     _tmpdir = mkdtemp()
 
     def setUp(self):
-        test_package = "57a1fa37c514992cf3958242"
-        tar = tarfile.open(("testdata/%s.tgz" % test_package))
+        tar = tarfile.open(("testdata/%s.tgz" % self._test_package))
         tar.extractall(self._tmpdir)
         tar.close()
 
-        self._workdir = os.path.join(self._tmpdir, test_package)
+        self._workdir = os.path.join(self._tmpdir, self._test_package.split("-")[0])
         self._repodir = os.path.join(self._workdir, "repo")
         self._agent_conf = os.path.join(self._tmpdir, "agent.conf")
 
@@ -207,6 +204,8 @@ class OverridesTests(CompositeTests):
         'stack-servers-vpn/operational-scripts/order.yaml': 'stack-servers-vpn/overrides/operational-scripts'
     }
 
+    _test_package = "57a1fa37c514992cf3958242-precedence-test-data-old-branch-model"
+
     def bootscripts_check(self, server, truth_files):
         override = False
         test_files = precedence_walk(self._repodir, "boot-scripts/order.yaml", server, override, DEBUG)
@@ -301,6 +300,8 @@ class OverridesTests(CompositeTests):
 
 
 class OldAndNewCompareTests(CompositeTests):
+    _test_package = "57a1fa37c514992cf3958242-precedence-test-data-old-branch-model"
+
     @unittest.expectedFailure
     def test_old_vs_new_bootscripts(self):
         print "<<<<< Running test:  %s  >>>>>" % inspect.currentframe().f_code.co_name
@@ -316,6 +317,9 @@ class OldAndNewCompareTests(CompositeTests):
 
 
 class RunBootScripts(CompositeTests):
+
+    _test_package = "57a1fa37c514992cf3958242-precedence-test-data-old-branch-model"
+
     def test_run_all_boot_scripts(self):
         print "<<<<< Running test:  %s  >>>>>" % inspect.currentframe().f_code.co_name
         load_configs(self._agent_conf)

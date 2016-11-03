@@ -308,11 +308,7 @@ def git(ssh_wrapper, git_dir, *args):
 def get_environment_dict():
     environment = {}
     asi_vars = get_coreo_appstackinstance_config()
-    appstack = get_coreo_appstack()
-    appstack_vars = json.loads(
-        re.sub('\n', r'', unicodedata.normalize('NFKD', appstack['config']).encode('ascii', 'ignore')))
-    all_vars = {'variables': appstack_vars['variables']}
-    all_vars['variables'].update(asi_vars)
+    all_vars = {'variables': asi_vars}
     for var in all_vars['variables']:
         value = all_vars['variables'][var]
         # if ! value['value'].nil? then
