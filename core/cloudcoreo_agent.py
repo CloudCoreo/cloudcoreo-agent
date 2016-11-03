@@ -535,7 +535,11 @@ def bootstrap():
     override = True
     precedence_walk(repo_dir, "", "", override)
 
-    run_all_boot_scripts(repo_dir, OPTIONS_FROM_CONFIG_FILE.server_name)
+    server_name = OPTIONS_FROM_CONFIG_FILE.server_name
+    # if we have no layered server, run the boot-scripts in repo/.
+    if server_name == OPTIONS_FROM_CONFIG_FILE.namespace.replace('ROOT::', '').lower():
+        server_name = ""
+    run_all_boot_scripts(repo_dir, server_name)
 
 
 def send_logs_to_webapp():
