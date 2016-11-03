@@ -25,12 +25,12 @@ class CompositeTests(unittest.TestCase):
     _tmpdir = mkdtemp()
 
     def setUp(self):
-        test_package = "57a1fa37c514992cf3958242"
+        test_package = "57a1fa37c514992cf3958242-precedence-test-data-old-branch-model"
         tar = tarfile.open(("testdata/%s.tgz" % test_package))
         tar.extractall(self._tmpdir)
         tar.close()
 
-        self._workdir = os.path.join(self._tmpdir, test_package)
+        self._workdir = os.path.join(self._tmpdir, test_package.split("-")[0])
         self._repodir = os.path.join(self._workdir, "repo")
         self._agent_conf = os.path.join(self._tmpdir, "agent.conf")
 
