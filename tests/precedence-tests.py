@@ -150,6 +150,7 @@ class OverridesTests(CompositeTests):
         'stack-servers-vpn/README.md',
         'stack-servers-vpn/extends/overrides/boot-scripts/vb2oo.sh'
     ]
+
     _truth_files_generic_before_override_exist = [
         'stack-servers-nat/extends/README.md',
         'stack-servers-vpn/extends/README.md',
@@ -337,11 +338,41 @@ class RunBootScripts(CompositeTests):
 
 
 class OperationalScripts(CompositeTests):
+
+    _truth_files_opscripts = [
+        'extends/operational-scripts/run_date.sh',
+        'extends/operational-scripts/run_df.sh',
+        'extends/operational-scripts/run_free.sh',
+        'extends/operational-scripts/run_ifconfig.sh',
+        'extends/operational-scripts/run_mount.sh',
+        'extends/operational-scripts/run_netstat.sh',
+        'extends/operational-scripts/run_ps.sh',
+        'extends/operational-scripts/run_rpm.sh',
+        'extends/operational-scripts/run_service.sh',
+        'extends/operational-scripts/run_top.sh',
+        'extends/operational-scripts/run_vmstat.sh',
+        'operational-scripts/run_repo_root.sh'
+    ]
+
     _test_package = "581a445b1f84592c0b18c7ce-simple-ec2-new-branch-model"
 
     def test_find_op_scripts(self):
         print "<<<<< Running test:  %s  >>>>>" % inspect.currentframe().f_code.co_name
         load_configs(self._agent_conf)
+
+        lookfor = "operational-scripts"
+        server = ""
+        override = False
+        test_files = precedence_walk(self._repodir, lookfor, server, override, DEBUG)
+        test_files = [test_file for test_file in test_files if ".sh" in test_file]
+
+        if DEBUG:
+            print "--------- truth_files_opscripts [%d] ----------" % len(self._truth_files_opscripts)
+            print self._truth_files_opscripts
+            print "--------- test_files [%d] ----------" % len(test_files)
+            print [re.sub('.*/repo/', '', entry) for entry in test_files]
+
+        self.assertEqual(len(self._truth_files_opscripts), len(test_files), "before and after did not return same number of files!")
 
 
 def suite():
