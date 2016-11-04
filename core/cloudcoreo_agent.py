@@ -146,6 +146,15 @@ def create_message_template(message_type, data):
     return message
 
 
+def publish_agent_logs():
+    message_with_logs_for_webapp = create_message_template("SCRIPT_LOGS", LOGS)
+    try:
+        publish_to_sns(message_with_logs_for_webapp, 'AGENT_LOGS', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+        del LOGS[:]
+    except Exception as ex:
+        log(ex)
+
+
 def publish_agent_online():
     message_data = {
         "server_name": OPTIONS_FROM_CONFIG_FILE.server_name,
@@ -503,7 +512,7 @@ def run_cmd(work_dir, *args):
         log(proc_stderr)
     log("  --- end stderr ---")
 
-    send_logs_to_webapp()
+    publish_agent_logs()
 
     return proc_ret_code
 
@@ -578,15 +587,6 @@ def bootstrap():
 
     # This should be last in bootstrap() because if no errors, the bootstrap file is marked completed
     run_all_boot_scripts(repo_dir, server_name)
-
-
-def send_logs_to_webapp():
-    message_with_logs_for_webapp = create_message_template("SCRIPT_LOGS", LOGS)
-    try:
-        publish_to_sns(message_with_logs_for_webapp, 'AGENT_LOGS', OPTIONS_FROM_CONFIG_FILE.topic_arn)
-        del LOGS[:]
-    except Exception as ex:
-        log(ex)
 
 
 def process_incoming_sqs_messages(sqs_response):
@@ -664,7 +664,7 @@ def main_loop():
             if u'Messages' in sqs_response:
                 process_incoming_sqs_messages(sqs_response)
             if len(LOGS):
-                send_logs_to_webapp()
+                publish_agent_logs()
 
             if time.time() - start > HEARTBEAT_INTERVAL:
                 publish_agent_heartbeat()
