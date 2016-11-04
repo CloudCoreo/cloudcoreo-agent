@@ -138,6 +138,7 @@ def create_message_template(message_type, data):
             },
         },
         "body": {
+            "timestamp": time.time(),
             "message_type": message_type,
             "data": data
         }
