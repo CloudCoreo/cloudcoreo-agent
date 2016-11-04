@@ -168,7 +168,7 @@ def publish_agent_online():
 
 def publish_agent_heartbeat():
     message_data = {
-        "load": os.getloadavg()
+        "load": json.dumps(os.getloadavg())
     }
     message = create_message_template("AGENT_HEARTBEAT", message_data)
     publish_to_sns(message, 'AGENT_INFO', OPTIONS_FROM_CONFIG_FILE.topic_arn)
