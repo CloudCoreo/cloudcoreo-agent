@@ -41,6 +41,7 @@ dt = time.time()
 LOGS = []
 MESSAGE_NEXT_NONE = -1
 MAX_EXCEPTION_WAIT_DELAY = 60
+HEARTBEAT_INTERVAL = 120
 
 
 # sort directories by extends, stack-, overrides, services, shutdown-, boot-, operational-
@@ -646,6 +647,7 @@ def run_script(message_body):
 
 def main_loop():
     delay = 1
+    start = time.time()
     while True:
         try:
             if not os.path.isfile(LOCK_FILE_PATH):
@@ -662,6 +664,10 @@ def main_loop():
                 process_incoming_sqs_messages(sqs_response)
             if len(LOGS):
                 send_logs_to_webapp()
+
+            if time.time() - start > HEARTBEAT_INTERVAL:
+                publish_agent_heartbeat()
+
             # success!
             delay = 1
         except Exception as ex:
