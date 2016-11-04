@@ -26,6 +26,8 @@ from core import __version__
 
 SQS_GET_MESSAGES_SLEEP_TIME = 10
 SQS_VISIBILITY_TIMEOUT = 0
+SNS_CLIENT = None
+SQS_CLIENT = None
 logging.basicConfig()
 DEFAULT_CONFIG_FILE_LOCATION = '/etc/cloudcoreo/agent.conf'
 # globals for caching
@@ -39,7 +41,7 @@ dt = time.time()
 LOGS = []
 MESSAGE_NEXT_NONE = -1
 MAX_EXCEPTION_WAIT_DELAY = 60
-
+PROCESSED_SQS_MESSAGES = {}
 
 # sort directories by extends, stack-, overrides, services, shutdown-, boot-, operational-
 PRECEDENCE_ORDER = {'t': 0, 'e': 1, 's': 2, 'p': 3, 'v': 4, 'o': 5, 'b': 6}
@@ -676,6 +678,7 @@ def start_agent():
 
     publish_agent_online()
 
+    global PROCESSED_SQS_MESSAGES
     PROCESSED_SQS_MESSAGES = read_processed_messages_from_file()
     print PROCESSED_SQS_MESSAGES
 
