@@ -192,9 +192,7 @@ def publish_op_scripts(repo_dir, server_name):
     override = False
     op_scripts = precedence_walk(repo_dir, "operational-scripts", server_name, override)
 
-    message_data = {
-        "scripts": [test_file for test_file in op_scripts if ".sh" in test_file]
-    }
+    message_data = [test_file for test_file in op_scripts if ".sh" in test_file]
     message = create_message_template("OP_SCRIPTS", message_data)
     publish_to_sns(message, 'AGENT_INFO', OPTIONS_FROM_CONFIG_FILE.topic_arn)
 
