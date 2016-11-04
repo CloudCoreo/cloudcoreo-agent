@@ -510,7 +510,7 @@ def run_cmd(work_dir, *args):
         log(proc_stderr)
     log("  --- end stderr ---")
 
-    publish_script_result(os.path.basename(str(list(args))), proc_ret_code)
+    publish_script_result(os.path.basename(str(list(args))[0]), proc_ret_code)
     publish_agent_logs()
 
     return proc_ret_code
