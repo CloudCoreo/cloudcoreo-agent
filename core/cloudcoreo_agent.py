@@ -32,6 +32,7 @@ DEFAULT_CONFIG_FILE_LOCATION = '/etc/cloudcoreo/agent.conf'
 # globals for caching
 MY_AZ = None
 COMPLETE_STRING = "COREO::BOOTSTRAP::complete"
+SENT_OP_SCRIPTS_STRING = "COREO::BOOTSTRAP::opscripts_sent"
 OPTIONS_FROM_CONFIG_FILE = None
 LOCK_FILE_PATH = ''
 PIP_PACKAGE_NAME = 'run_client'
@@ -171,12 +172,23 @@ def publish_script_result(script_name, script_return_code):
     publish_to_sns(message, 'AGENT_INFO', OPTIONS_FROM_CONFIG_FILE.topic_arn)
 
 
-def publish_op_scripts(op_scripts):
+def publish_op_scripts(repo_dir, server_name):
+    if SENT_OP_SCRIPTS_STRING in open(LOCK_FILE_PATH, 'r').read():
+        log("already sent operational scripts")
+        return
+
+    # Collect operational scripts
+    override = False
+    op_scripts = precedence_walk(repo_dir, "operational-scripts", server_name, override)
+
     message_data = {
-        "scripts": op_scripts
+        "scripts": [test_file for test_file in op_scripts if ".sh" in test_file]
     }
     message = create_message_template("OP_SCRIPTS", message_data)
     publish_to_sns(message, 'AGENT_INFO', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+
+    with open(LOCK_FILE_PATH, 'a') as lockFile:
+        lockFile.write("%s\n" % SENT_OP_SCRIPTS_STRING)
 
 
 def get_availability_zone():
@@ -556,9 +568,11 @@ def bootstrap():
     precedence_walk(repo_dir, "", "", override)
 
     server_name = OPTIONS_FROM_CONFIG_FILE.server_name
-    # if we have no layered server, run the boot-scripts in repo/.
+    # if we have no layered server, use repo/.
     if server_name == OPTIONS_FROM_CONFIG_FILE.namespace.replace('ROOT::', '').lower():
         server_name = ""
+
+    publish_op_scripts(repo_dir, server_name)
 
     # This should be last in bootstrap() because if no errors, the bootstrap file is marked completed
     run_all_boot_scripts(repo_dir, server_name)
