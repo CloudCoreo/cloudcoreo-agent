@@ -22,6 +22,7 @@ import requests
 import stat
 import sys
 import yaml
+import socket
 from core import __version__
 
 SQS_GET_MESSAGES_SLEEP_TIME = 10
@@ -31,6 +32,7 @@ DEFAULT_CONFIG_FILE_LOCATION = '/etc/cloudcoreo/agent.conf'
 # globals for caching
 MY_AZ = None
 COMPLETE_STRING = "COREO::BOOTSTRAP::complete"
+SENT_OP_SCRIPTS_STRING = "COREO::BOOTSTRAP::opscripts_sent"
 OPTIONS_FROM_CONFIG_FILE = None
 LOCK_FILE_PATH = ''
 PIP_PACKAGE_NAME = 'run_client'
@@ -39,6 +41,7 @@ dt = time.time()
 LOGS = []
 MESSAGE_NEXT_NONE = -1
 MAX_EXCEPTION_WAIT_DELAY = 60
+HEARTBEAT_INTERVAL = 3600
 
 
 # sort directories by extends, stack-, overrides, services, shutdown-, boot-, operational-
@@ -62,12 +65,13 @@ def read_processed_messages_from_file():
 
 
 def publish_to_sns(message_text, subject, topic_arn):
-    sns_response = SNS_CLIENT.publish(
-        TopicArn=topic_arn,
-        Subject=subject,
-        Message=message_text
-    )
-    return sns_response
+    if not OPTIONS_FROM_CONFIG_FILE.debug:
+        sns_response = SNS_CLIENT.publish(
+            TopicArn=topic_arn,
+            Subject=subject,
+            Message=json.dumps(message_text)
+        )
+        return sns_response
 
 
 def get_sqs_messages(queue_url):
@@ -123,7 +127,7 @@ def set_agent_uuid():
     log("OPTIONS.agent_uuid: %s" % OPTIONS_FROM_CONFIG_FILE.agent_uuid)
 
 
-def create_message(message_type, message, message_id = MESSAGE_NEXT_NONE):
+def create_message_template(message_type, data):
     message = {
         "header": {
             "publisher": {
@@ -132,27 +136,68 @@ def create_message(message_type, message, message_id = MESSAGE_NEXT_NONE):
                 "publisher_id": OPTIONS_FROM_CONFIG_FILE.agent_uuid,
                 "publisher_access_id": OPTIONS_FROM_CONFIG_FILE.coreo_access_id
             },
-            "appstack": {
-                "appstack_id": get_coreo_appstack()['_id'],
-                "asi_id": OPTIONS_FROM_CONFIG_FILE.asi_id
-            },
-            "timestamp": time.time(),
-            "message_id": message_id
         },
         "body": {
+            "timestamp": time.time(),
             "message_type": message_type,
-            "message": message
+            "data": data
         }
     }
     return message
 
 
+def publish_agent_logs():
+    message_with_logs_for_webapp = create_message_template("SCRIPT_LOGS", LOGS)
+    try:
+        publish_to_sns(message_with_logs_for_webapp, 'AGENT_LOGS', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+        del LOGS[:]
+    except Exception as ex:
+        log(ex)
+
+
 def publish_agent_online():
-    message = create_message("agent_online", "online")
-    stringified_json = json.dumps(message)
-    print "uuid message: %s" % stringified_json
-    if not OPTIONS_FROM_CONFIG_FILE.debug:
-        publish_to_sns(stringified_json, 'AGENT_ONLINE', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+    message_data = {
+        "server_name": OPTIONS_FROM_CONFIG_FILE.server_name,
+        "namespace": OPTIONS_FROM_CONFIG_FILE.namespace,
+        "run_id": OPTIONS_FROM_CONFIG_FILE.run_id,
+        "hostname": socket.gethostname()
+    }
+    message = create_message_template("AGENT_ONLINE", message_data)
+    publish_to_sns(message, 'AGENT_INFO', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+
+
+def publish_agent_heartbeat():
+    message_data = {
+        "load": json.dumps(os.getloadavg())
+    }
+    message = create_message_template("AGENT_HEARTBEAT", message_data)
+    publish_to_sns(message, 'AGENT_INFO', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+
+
+def publish_script_result(script_name, script_return_code):
+    message_data = {
+        "script_name": script_name,
+        "return_code": script_return_code
+    }
+    message = create_message_template("SCRIPT_RESULT", message_data)
+    publish_to_sns(message, 'AGENT_INFO', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+
+
+def publish_op_scripts(repo_dir, server_name):
+    if SENT_OP_SCRIPTS_STRING in open(LOCK_FILE_PATH, 'r').read():
+        log("already sent operational scripts")
+        return
+
+    # Collect operational scripts
+    override = False
+    op_scripts = precedence_walk(repo_dir, "operational-scripts", server_name, override)
+
+    message_data = [os.path.basename(test_file) for test_file in op_scripts if ".sh" in test_file]
+    message = create_message_template("OP_SCRIPTS", message_data)
+    publish_to_sns(message, 'AGENT_INFO', OPTIONS_FROM_CONFIG_FILE.topic_arn)
+
+    with open(LOCK_FILE_PATH, 'a') as lockFile:
+        lockFile.write("%s\n" % SENT_OP_SCRIPTS_STRING)
 
 
 def get_availability_zone():
@@ -465,7 +510,8 @@ def run_cmd(work_dir, *args):
         log(proc_stderr)
     log("  --- end stderr ---")
 
-    send_logs_to_webapp()
+    publish_script_result(os.path.basename(str(list(args))[0]), proc_ret_code)
+    publish_agent_logs()
 
     return proc_ret_code
 
@@ -532,21 +578,14 @@ def bootstrap():
     precedence_walk(repo_dir, "", "", override)
 
     server_name = OPTIONS_FROM_CONFIG_FILE.server_name
-    # if we have no layered server, run the boot-scripts in repo/.
+    # if we have no layered server, use repo/.
     if server_name == OPTIONS_FROM_CONFIG_FILE.namespace.replace('ROOT::', '').lower():
         server_name = ""
+
+    publish_op_scripts(repo_dir, server_name)
+
+    # This should be last in bootstrap() because if no errors, the bootstrap file is marked completed
     run_all_boot_scripts(repo_dir, server_name)
-
-
-def send_logs_to_webapp():
-    message_with_logs_for_webapp = create_message("script_logs", LOGS)
-    stringified_json = json.dumps(message_with_logs_for_webapp)
-    print 'stringified_json: ' + stringified_json
-    try:
-        publish_to_sns(stringified_json, 'AGENT_LOGS', OPTIONS_FROM_CONFIG_FILE.topic_arn)
-        del LOGS[:]
-    except Exception as ex:
-        log(ex)
 
 
 def process_incoming_sqs_messages(sqs_response):
@@ -608,6 +647,7 @@ def run_script(message_body):
 
 def main_loop():
     delay = 1
+    start = time.time()
     while True:
         try:
             if not os.path.isfile(LOCK_FILE_PATH):
@@ -623,7 +663,11 @@ def main_loop():
             if u'Messages' in sqs_response:
                 process_incoming_sqs_messages(sqs_response)
             if len(LOGS):
-                send_logs_to_webapp()
+                publish_agent_logs()
+
+            if time.time() - start > HEARTBEAT_INTERVAL:
+                publish_agent_heartbeat()
+
             # success!
             delay = 1
         except Exception as ex:
