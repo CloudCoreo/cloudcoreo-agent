@@ -657,10 +657,10 @@ def run_script(message_body):
         server_name = get_server_name()
         op_scripts = collect_operational_scripts(repo_dir, server_name)
         full_script_path = [test_file for test_file in op_scripts if script_name in test_file]
-        # assuming we only have a single script named script_name
+        # assuming we only have a single script named script_name in full_script_path, so use [0]
         if len(full_script_path) and len(full_script_path[0]):
             env = get_environment_dict()
-            run_cmd(full_script_path, env)
+            run_cmd(full_script_path[0], env)
     except Exception as ex:
         log("exception: %s" % str(ex))
 
