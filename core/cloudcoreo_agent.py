@@ -190,16 +190,21 @@ def publish_op_scripts(repo_dir, server_name):
         log("already sent operational scripts")
         return
 
-    # Collect operational scripts
-    override = False
-    op_scripts = precedence_walk(repo_dir, "operational-scripts", server_name, override)
-
-    message_data = [os.path.basename(test_file) for test_file in op_scripts if ".sh" in test_file]
+    op_scripts = collect_operational_scripts(repo_dir, server_name)
+    # remove path from scripts
+    message_data = [os.path.basename(test_file) for test_file in op_scripts]
     message = create_message_template("OP_SCRIPTS", message_data)
     publish_to_sns(message, 'AGENT_INFO', OPTIONS_FROM_CONFIG_FILE.topic_arn)
 
     with open(LOCK_FILE_PATH, 'a') as lockFile:
         lockFile.write("%s\n" % SENT_OP_SCRIPTS_STRING)
+
+
+def collect_operational_scripts(repo_dir, server_name):
+    # Collect operational scripts
+    override = False
+    op_scripts = precedence_walk(repo_dir, "operational-scripts", server_name, override)
+    return [test_file for test_file in op_scripts if ".sh" in test_file]
 
 
 def get_availability_zone():
@@ -479,12 +484,22 @@ def set_env(env_list):
                 os.environ[values[0]] = str(values[1]).strip().strip('"')
 
 
-def run_cmd(work_dir, *args):
-    log("running command: %s" % str(list(args)))
+def run_cmd(full_script_path, environment):
+    log("running script [%s]" % full_script_path)
+    if OPTIONS_FROM_CONFIG_FILE.debug:
+        command = "date"
+    else:
+        os.chmod(full_script_path, stat.S_IEXEC)
+        command = "./%s" % os.path.basename(full_script_path)
+
+    set_env(environment)
+
+    work_dir = os.path.dirname(full_script_path)
+    log("running command: %s" % command)
     log("cwd=%s" % work_dir)
 
     proc = subprocess.Popen(
-        list(args),
+        command,
         cwd=work_dir,
         shell=False,
         stdout=subprocess.PIPE,
@@ -497,9 +512,9 @@ def run_cmd(work_dir, *args):
         log_file.write(proc_stdout)
 
     if proc_ret_code == 0:
-        log("Success running script [%s]" % list(args))
+        log("Success running script [%s]" % command)
     else:
-        log("Error running script [%s]" % list(args))
+        log("Error running script [%s]" % command)
 
     log("  script return code: [%d]" % proc_ret_code)
 
@@ -512,7 +527,7 @@ def run_cmd(work_dir, *args):
         log(proc_stderr)
     log("  --- end stderr ---")
 
-    publish_script_result(os.path.basename(str(list(args))[0]), proc_ret_code)
+    publish_script_result(os.path.basename(command), proc_ret_code)
     publish_agent_logs()
 
     return proc_ret_code
@@ -541,17 +556,11 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
         num_order_files_processed += 1
         for script in my_doc['script-order']:
             full_path = os.path.join(os.path.dirname(f), script)
-            log("running script [%s]" % full_path)
-            if not OPTIONS_FROM_CONFIG_FILE.debug:
-                os.chmod(full_path, stat.S_IEXEC)
-            set_env(env)
             if full_path in open(LOCK_FILE_PATH, 'r').read():
                 log("skipping run of [%s]. Already run" % script)
                 continue
-            command = "./%s" % os.path.basename(full_path)
-            if OPTIONS_FROM_CONFIG_FILE.debug:
-                command = "date"
-            err = run_cmd(os.path.dirname(full_path), command)
+
+            err = run_cmd(full_path, env)
             if not err:
                 with open(LOCK_FILE_PATH, 'a') as lockFile:
                     lockFile.write("%s\n" % full_path)
@@ -564,6 +573,15 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
             lockFile.write(COMPLETE_STRING)
 
     return num_order_files_processed
+
+
+def get_server_name():
+    server_name = OPTIONS_FROM_CONFIG_FILE.server_name
+    # if we have no layered server, use repo/.
+    if server_name == OPTIONS_FROM_CONFIG_FILE.namespace.replace('ROOT::', '').lower():
+        server_name = ""
+
+    return server_name
 
 
 def bootstrap():
@@ -579,10 +597,7 @@ def bootstrap():
     override = True
     precedence_walk(repo_dir, "", "", override)
 
-    server_name = OPTIONS_FROM_CONFIG_FILE.server_name
-    # if we have no layered server, use repo/.
-    if server_name == OPTIONS_FROM_CONFIG_FILE.namespace.replace('ROOT::', '').lower():
-        server_name = ""
+    server_name = get_server_name()
 
     publish_op_scripts(repo_dir, server_name)
 
@@ -637,15 +652,18 @@ def update_package():
 
 def run_script(message_body):
     try:
-        script = message_body['payload']
-        if not OPTIONS_FROM_CONFIG_FILE.debug:
-            os.chmod(script, stat.S_IEXEC)
-            os.system(script)
+        script_name = message_body['payload']
+        repo_dir = os.path.join(OPTIONS_FROM_CONFIG_FILE.work_dir, "repo")
+        server_name = get_server_name()
+        op_scripts = collect_operational_scripts(repo_dir, server_name)
+        full_script_path = [test_file for test_file in op_scripts if script_name in test_file]
+        # assuming we only have a single script named script_name
+        if len(full_script_path) and len(full_script_path[0]):
+            env = get_environment_dict()
+            run_cmd(full_script_path, env)
     except Exception as ex:
         log("exception: %s" % str(ex))
 
-
-# TODO add PROCESSED_SQS_MESSAGES clearness
 
 def main_loop():
     delay = 1
