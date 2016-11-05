@@ -697,7 +697,9 @@ def main_loop():
             if len(LOGS):
                 publish_agent_logs()
 
-            if time.time() - start > HEARTBEAT_INTERVAL:
+            now = time.time()
+            if now - start > HEARTBEAT_INTERVAL:
+                start = now
                 publish_agent_heartbeat()
 
             # success!
