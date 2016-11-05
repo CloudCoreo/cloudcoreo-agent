@@ -45,6 +45,7 @@ MESSAGE_NEXT_NONE = -1
 MAX_EXCEPTION_WAIT_DELAY = 60
 HEARTBEAT_INTERVAL = 120
 PROCESSED_SQS_MESSAGES = {}
+ALL_SERVERS_TARGET = "COREO::ALL_SERVERS"
 
 # sort directories by extends, stack-, overrides, services, shutdown-, boot-, operational-
 PRECEDENCE_ORDER = {'t': 0, 'e': 1, 's': 2, 'p': 3, 'v': 4, 'o': 5, 'b': 6}
@@ -622,7 +623,7 @@ def process_message(message):
         # only process messages intended for me
         message_server_name = message_body['server']
         print 'Message server is ' + message_server_name
-        if message_server_name != get_server_name():
+        if message_server_name != ALL_SERVERS_TARGET and message_server_name != get_server_name():
             return
 
         message_type = message_body['type']
