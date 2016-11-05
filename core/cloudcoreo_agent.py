@@ -618,6 +618,13 @@ def process_message(message):
         PROCESSED_SQS_MESSAGES[message_id] = time.time()
         message_body = json.loads(message[u'Body'])
         print 'Got message via SQS'
+
+        # only process messages intended for me
+        message_server_name = message_body['server']
+        print 'Message server is ' + message_server_name
+        if message_server_name != get_server_name():
+            return
+
         message_type = message_body['type']
         print 'Message type is ' + message_type
         if message_type.lower() == 'runcommand':
