@@ -41,7 +41,7 @@ dt = time.time()
 LOGS = []
 MESSAGE_NEXT_NONE = -1
 MAX_EXCEPTION_WAIT_DELAY = 60
-HEARTBEAT_INTERVAL = 120
+HEARTBEAT_INTERVAL = 3600
 
 
 # sort directories by extends, stack-, overrides, services, shutdown-, boot-, operational-
