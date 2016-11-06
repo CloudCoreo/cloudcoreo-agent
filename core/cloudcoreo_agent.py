@@ -344,23 +344,21 @@ def clone_for_asi(branch, revision, repo_url, key_material, work_dir):
 
 
 def git(ssh_wrapper, git_dir, *args):
-    environment = {'GIT_SSH': ssh_wrapper}
-    return run_cmd("git", environment, args)
-    # log("setting environment GIT_SSH=%s" % ssh_wrapper)
-    # os.environ['GIT_SSH'] = "%s" % ssh_wrapper
-    # log("cwd=%s" % git_dir)
-    # log("running command: %s" % str(['git'] + list(args)))
-    # p = subprocess.Popen(['git'] + list(args),
-    #                      cwd=git_dir,
-    #                      stdin=subprocess.PIPE,
-    #                      stdout=subprocess.PIPE,
-    #                      stderr=subprocess.PIPE,
-    #                      preexec_fn=os.setsid,
-    #                      shell=False
-    #                      )
-    # (std_out_data, std_err_data) = p.communicate()
-    # log("(std_out_data, std_err_data) = (%s, %s)" % (std_out_data, std_err_data))
-    # return p
+    log("setting environment GIT_SSH=%s" % ssh_wrapper)
+    os.environ['GIT_SSH'] = "%s" % ssh_wrapper
+    log("cwd=%s" % git_dir)
+    log("running command: %s" % str(['git'] + list(args)))
+    p = subprocess.Popen(['git'] + list(args),
+                         cwd=git_dir,
+                         stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE,
+                         preexec_fn=os.setsid,
+                         shell=False
+                         )
+    (std_out_data, std_err_data) = p.communicate()
+    log("(std_out_data, std_err_data) = (%s, %s)" % (std_out_data, std_err_data))
+    return p
 
 
 def get_environment_dict():
@@ -490,7 +488,7 @@ def set_env(env_list):
                 os.environ[values[0]] = str(values[1]).strip().strip('"')
 
 
-def run_cmd(full_script_path, environment, *args):
+def run_cmd(full_script_path, environment):
     log("running script [%s]" % full_script_path)
     if OPTIONS_FROM_CONFIG_FILE.debug:
         command = "date"
@@ -505,10 +503,9 @@ def run_cmd(full_script_path, environment, *args):
     log("cwd=%s" % work_dir)
 
     proc = subprocess.Popen(
-        [command] + list(args),
+        command,
         cwd=work_dir,
         shell=False,
-        preexec_fn=os.setsid,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE)
 
