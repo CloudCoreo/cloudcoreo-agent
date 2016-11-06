@@ -342,6 +342,7 @@ def clone_for_asi(branch, revision, repo_url, key_material, work_dir):
 
     return gitError
 
+
 def git(ssh_wrapper, git_dir, *args):
     log("setting environment GIT_SSH=%s" % ssh_wrapper)
     os.environ['GIT_SSH'] = "%s" % ssh_wrapper
@@ -592,8 +593,10 @@ def bootstrap():
     asi = get_coreo_appstackinstance()
     appstack = get_coreo_appstack()
     key = get_coreo_key()
-    clone_for_asi(asi['branch'], asi['revision'], appstack['gitUrl'], key['keyMaterial'],
+    git_error = clone_for_asi(asi['branch'], asi['revision'], appstack['gitUrl'], key['keyMaterial'],
                   OPTIONS_FROM_CONFIG_FILE.work_dir)
+    if git_error:
+        return
 
     # First apply any overrides in the repo for all files
     repo_dir = os.path.join(OPTIONS_FROM_CONFIG_FILE.work_dir, "repo")
