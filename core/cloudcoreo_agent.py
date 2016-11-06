@@ -703,8 +703,6 @@ def main_loop():
                 raise ValueError("Error while getting SQS messages.")
             if u'Messages' in sqs_response:
                 process_incoming_sqs_messages(sqs_response)
-            if len(LOGS):
-                publish_agent_logs()
 
             now = time.time()
             if now - start > HEARTBEAT_INTERVAL:
@@ -721,6 +719,13 @@ def main_loop():
                 delay *= 2
             if OPTIONS_FROM_CONFIG_FILE.debug:
                 terminate_script()
+
+        # Put logging in separate block so that happens every loop iteration
+        try:
+            if len(LOGS):
+                publish_agent_logs()
+        except Exception as ex:
+            log("Publish Exception caught: [%s]" % str(ex))
 
         time.sleep(delay)
 
