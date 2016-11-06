@@ -64,7 +64,7 @@ def read_processed_messages_from_file():
         except Exception as ex:
             log(ex)
     else:
-        log("no unprocessed messages in file %s" % PROCESSED_SQS_MESSAGES_DICT_PATH)
+        log("no messages to process in file %s" % PROCESSED_SQS_MESSAGES_DICT_PATH)
 
     return {}
 
