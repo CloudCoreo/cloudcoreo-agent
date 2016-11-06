@@ -57,12 +57,16 @@ def log(log_text):
 
 
 def read_processed_messages_from_file():
-    print PROCESSED_SQS_MESSAGES_DICT_PATH
-    try:
-        return eval(open(PROCESSED_SQS_MESSAGES_DICT_PATH, 'r').read())
-    except Exception as ex:
-        log(ex)
-        return {}
+    if os.path.isfile(PROCESSED_SQS_MESSAGES_DICT_PATH):
+        log("checking for unprocessed SQS messages in file %s" % PROCESSED_SQS_MESSAGES_DICT_PATH)
+        try:
+            return eval(open(PROCESSED_SQS_MESSAGES_DICT_PATH, 'r').read())
+        except Exception as ex:
+            log(ex)
+    else:
+        log("no unprocessed messages in file %s" % PROCESSED_SQS_MESSAGES_DICT_PATH)
+
+    return {}
 
 
 def publish_to_sns(message_text, subject, topic_arn):
