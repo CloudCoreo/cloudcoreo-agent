@@ -9,7 +9,6 @@ import json
 import logging
 import string
 import traceback
-import unicodedata
 import subprocess
 import argparse
 from tempfile import mkstemp
