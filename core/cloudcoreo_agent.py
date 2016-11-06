@@ -596,6 +596,7 @@ def bootstrap():
     git_error = clone_for_asi(asi['branch'], asi['revision'], appstack['gitUrl'], key['keyMaterial'],
                   OPTIONS_FROM_CONFIG_FILE.work_dir)
     if git_error:
+        raise RuntimeError("error cloning repo")
         return
 
     # First apply any overrides in the repo for all files
