@@ -336,7 +336,9 @@ def clone_for_asi(branch, revision, repo_url, key_material, work_dir):
     os.remove(ssh_wrapper_path)
 
     # If all git operations succeeded, mark that repo was cloned successfully
-    if not gitError:
+    if gitError:
+        shutil.rmtree("%s/repo" % work_dir)
+    else:
         with open(LOCK_FILE_PATH, 'a') as lockFile:
             lockFile.write("%s\n" % repo_url.strip())
 
