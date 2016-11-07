@@ -570,14 +570,14 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
                 with open(LOCK_FILE_PATH, 'a') as lockFile:
                     lockFile.write("%s\n" % full_path)
             else:
-                full_run_error = err
+                return err
 
     # if we have not received any errors for the whole run, lets mark the bootstrap lock as complete
     if not full_run_error:
         with open(LOCK_FILE_PATH, 'a') as lockFile:
             lockFile.write(COMPLETE_STRING)
 
-    return num_order_files_processed
+    return full_run_error
 
 
 def get_server_name():
@@ -598,7 +598,7 @@ def bootstrap():
                   OPTIONS_FROM_CONFIG_FILE.work_dir)
     if git_error:
         raise RuntimeError("error cloning repo")
-        return
+        return git_error
 
     # First apply any overrides in the repo for all files
     repo_dir = os.path.join(OPTIONS_FROM_CONFIG_FILE.work_dir, "repo")
@@ -610,7 +610,7 @@ def bootstrap():
     publish_op_scripts(repo_dir, server_name)
 
     # This should be last in bootstrap() because if no errors, the bootstrap file is marked completed
-    run_all_boot_scripts(repo_dir, server_name)
+    return run_all_boot_scripts(repo_dir, server_name)
 
 
 def process_incoming_sqs_messages(sqs_response):
@@ -694,7 +694,7 @@ def main_loop():
                 with open(LOCK_FILE_PATH, 'a'):
                     os.utime(LOCK_FILE_PATH, None)
             if COMPLETE_STRING not in open(LOCK_FILE_PATH, 'r').read():
-                bootstrap()
+                bootstrap_error = bootstrap()
 
             sqs_response = get_sqs_messages(OPTIONS_FROM_CONFIG_FILE.queue_url)
             if not sqs_response:
@@ -707,6 +707,10 @@ def main_loop():
                 start = now
                 publish_agent_heartbeat()
 
+            # check bootstrap error later so get sqs msgs and publish heartbeat can run
+            if bootstrap_error:
+                raise RuntimeError("error in bootstrap()")
+
             # success!
             delay = 1
         except Exception as ex:
@@ -718,7 +722,7 @@ def main_loop():
             if OPTIONS_FROM_CONFIG_FILE.debug:
                 terminate_script()
 
-        # Put logging in separate block so that happens every loop iteration
+        # Put logging in separate block so that it happens every loop iteration
         try:
             if len(LOGS):
                 publish_agent_logs()
