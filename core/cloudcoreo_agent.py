@@ -9,7 +9,6 @@ import json
 import logging
 import string
 import traceback
-import unicodedata
 import subprocess
 import argparse
 from tempfile import mkstemp
@@ -27,6 +26,8 @@ from core import __version__
 
 SQS_GET_MESSAGES_SLEEP_TIME = 10
 SQS_VISIBILITY_TIMEOUT = 0
+SNS_CLIENT = None
+SQS_CLIENT = None
 logging.basicConfig()
 DEFAULT_CONFIG_FILE_LOCATION = '/etc/cloudcoreo/agent.conf'
 # globals for caching
@@ -37,12 +38,11 @@ OPTIONS_FROM_CONFIG_FILE = None
 LOCK_FILE_PATH = ''
 PIP_PACKAGE_NAME = 'run_client'
 PROCESSED_SQS_MESSAGES_DICT_PATH = '/tmp/processed-messages.txt'
-dt = time.time()
 LOGS = []
-MESSAGE_NEXT_NONE = -1
 MAX_EXCEPTION_WAIT_DELAY = 60
 HEARTBEAT_INTERVAL = 3600
-
+PROCESSED_SQS_MESSAGES = {}
+ALL_SERVERS_TARGET = "COREO::ALL_SERVERS"
 
 # sort directories by extends, stack-, overrides, services, shutdown-, boot-, operational-
 PRECEDENCE_ORDER = {'t': 0, 'e': 1, 's': 2, 'p': 3, 'v': 4, 'o': 5, 'b': 6}
@@ -56,12 +56,16 @@ def log(log_text):
 
 
 def read_processed_messages_from_file():
-    print PROCESSED_SQS_MESSAGES_DICT_PATH
-    try:
-        return eval(open(PROCESSED_SQS_MESSAGES_DICT_PATH, 'r').read())
-    except Exception as ex:
-        log(ex)
-        return {}
+    if os.path.isfile(PROCESSED_SQS_MESSAGES_DICT_PATH):
+        log("checking for unprocessed SQS messages in file %s" % PROCESSED_SQS_MESSAGES_DICT_PATH)
+        try:
+            return eval(open(PROCESSED_SQS_MESSAGES_DICT_PATH, 'r').read())
+        except Exception as ex:
+            log(ex)
+    else:
+        log("no messages to process in file %s" % PROCESSED_SQS_MESSAGES_DICT_PATH)
+
+    return {}
 
 
 def publish_to_sns(message_text, subject, topic_arn):
@@ -188,16 +192,21 @@ def publish_op_scripts(repo_dir, server_name):
         log("already sent operational scripts")
         return
 
-    # Collect operational scripts
-    override = False
-    op_scripts = precedence_walk(repo_dir, "operational-scripts", server_name, override)
-
-    message_data = [os.path.basename(test_file) for test_file in op_scripts if ".sh" in test_file]
+    op_scripts = collect_operational_scripts(repo_dir, server_name)
+    # remove path from scripts
+    message_data = [os.path.basename(test_file) for test_file in op_scripts]
     message = create_message_template("OP_SCRIPTS", message_data)
     publish_to_sns(message, 'AGENT_INFO', OPTIONS_FROM_CONFIG_FILE.topic_arn)
 
     with open(LOCK_FILE_PATH, 'a') as lockFile:
         lockFile.write("%s\n" % SENT_OP_SCRIPTS_STRING)
+
+
+def collect_operational_scripts(repo_dir, server_name):
+    # Collect operational scripts
+    override = False
+    op_scripts = precedence_walk(repo_dir, "operational-scripts", server_name, override)
+    return [test_file for test_file in op_scripts if ".sh" in test_file]
 
 
 def get_availability_zone():
@@ -326,11 +335,14 @@ def clone_for_asi(branch, revision, repo_url, key_material, work_dir):
     os.remove(ssh_wrapper_path)
 
     # If all git operations succeeded, mark that repo was cloned successfully
-    if not gitError:
+    if gitError:
+        shutil.rmtree("%s/repo" % work_dir)
+    else:
         with open(LOCK_FILE_PATH, 'a') as lockFile:
             lockFile.write("%s\n" % repo_url.strip())
 
     return gitError
+
 
 def git(ssh_wrapper, git_dir, *args):
     log("setting environment GIT_SSH=%s" % ssh_wrapper)
@@ -477,12 +489,22 @@ def set_env(env_list):
                 os.environ[values[0]] = str(values[1]).strip().strip('"')
 
 
-def run_cmd(work_dir, *args):
-    log("running command: %s" % str(list(args)))
+def run_cmd(full_script_path, environment):
+    log("running script [%s]" % full_script_path)
+    if OPTIONS_FROM_CONFIG_FILE.debug:
+        command = "date"
+    else:
+        os.chmod(full_script_path, stat.S_IEXEC)
+        command = "./%s" % os.path.basename(full_script_path)
+
+    set_env(environment)
+
+    work_dir = os.path.dirname(full_script_path)
+    log("running command: %s" % command)
     log("cwd=%s" % work_dir)
 
     proc = subprocess.Popen(
-        list(args),
+        command,
         cwd=work_dir,
         shell=False,
         stdout=subprocess.PIPE,
@@ -495,9 +517,9 @@ def run_cmd(work_dir, *args):
         log_file.write(proc_stdout)
 
     if proc_ret_code == 0:
-        log("Success running script [%s]" % list(args))
+        log("Success running script [%s]" % command)
     else:
-        log("Error running script [%s]" % list(args))
+        log("Error running script [%s]" % command)
 
     log("  script return code: [%d]" % proc_ret_code)
 
@@ -510,7 +532,7 @@ def run_cmd(work_dir, *args):
         log(proc_stderr)
     log("  --- end stderr ---")
 
-    publish_script_result(os.path.basename(str(list(args))[0]), proc_ret_code)
+    publish_script_result(os.path.basename(command), proc_ret_code)
     publish_agent_logs()
 
     return proc_ret_code
@@ -539,17 +561,11 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
         num_order_files_processed += 1
         for script in my_doc['script-order']:
             full_path = os.path.join(os.path.dirname(f), script)
-            log("running script [%s]" % full_path)
-            if not OPTIONS_FROM_CONFIG_FILE.debug:
-                os.chmod(full_path, stat.S_IEXEC)
-            set_env(env)
             if full_path in open(LOCK_FILE_PATH, 'r').read():
                 log("skipping run of [%s]. Already run" % script)
                 continue
-            command = "./%s" % os.path.basename(full_path)
-            if OPTIONS_FROM_CONFIG_FILE.debug:
-                command = "date"
-            err = run_cmd(os.path.dirname(full_path), command)
+
+            err = run_cmd(full_path, env)
             if not err:
                 with open(LOCK_FILE_PATH, 'a') as lockFile:
                     lockFile.write("%s\n" % full_path)
@@ -564,23 +580,32 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
     return num_order_files_processed
 
 
+def get_server_name():
+    server_name = OPTIONS_FROM_CONFIG_FILE.server_name
+    # if we have no layered server, use repo/.
+    if server_name == OPTIONS_FROM_CONFIG_FILE.namespace.replace('ROOT::', '').lower():
+        server_name = ""
+
+    return server_name
+
+
 def bootstrap():
     log("getting response from server")
     asi = get_coreo_appstackinstance()
     appstack = get_coreo_appstack()
     key = get_coreo_key()
-    clone_for_asi(asi['branch'], asi['revision'], appstack['gitUrl'], key['keyMaterial'],
+    git_error = clone_for_asi(asi['branch'], asi['revision'], appstack['gitUrl'], key['keyMaterial'],
                   OPTIONS_FROM_CONFIG_FILE.work_dir)
+    if git_error:
+        raise RuntimeError("error cloning repo")
+        return
 
     # First apply any overrides in the repo for all files
     repo_dir = os.path.join(OPTIONS_FROM_CONFIG_FILE.work_dir, "repo")
     override = True
     precedence_walk(repo_dir, "", "", override)
 
-    server_name = OPTIONS_FROM_CONFIG_FILE.server_name
-    # if we have no layered server, use repo/.
-    if server_name == OPTIONS_FROM_CONFIG_FILE.namespace.replace('ROOT::', '').lower():
-        server_name = ""
+    server_name = get_server_name()
 
     publish_op_scripts(repo_dir, server_name)
 
@@ -601,6 +626,13 @@ def process_message(message):
         PROCESSED_SQS_MESSAGES[message_id] = time.time()
         message_body = json.loads(message[u'Body'])
         print 'Got message via SQS'
+
+        # only process messages intended for me
+        message_server_name = message_body['server']
+        print 'Message server is ' + message_server_name
+        if message_server_name != ALL_SERVERS_TARGET and message_server_name != get_server_name():
+            return
+
         message_type = message_body['type']
         print 'Message type is ' + message_type
         if message_type.lower() == 'runcommand':
@@ -635,15 +667,22 @@ def update_package():
 
 def run_script(message_body):
     try:
-        script = message_body['payload']
-        if not OPTIONS_FROM_CONFIG_FILE.debug:
-            os.chmod(script, stat.S_IEXEC)
-            os.system(script)
+        script_name = message_body['payload']
+        repo_dir = os.path.join(OPTIONS_FROM_CONFIG_FILE.work_dir, "repo")
+        server_name = get_server_name()
+        op_scripts = collect_operational_scripts(repo_dir, server_name)
+        full_script_path = [test_file for test_file in op_scripts if script_name in test_file]
+        if len(full_script_path) == 0:
+            log("operational script [%s] not found for server [%s]" % (script_name, server_name))
+        elif len(full_script_path) > 1:
+            log("Error: found [%d] operational scripts [%s] for server [%s]" %
+                (len(full_script_path), script_name, server_name))
+        elif len(full_script_path) and len(full_script_path[0]):
+            env = get_environment_dict()
+            run_cmd(full_script_path[0], env)
     except Exception as ex:
         log("exception: %s" % str(ex))
 
-
-# TODO add PROCESSED_SQS_MESSAGES clearness
 
 def main_loop():
     delay = 1
@@ -662,8 +701,6 @@ def main_loop():
                 raise ValueError("Error while getting SQS messages.")
             if u'Messages' in sqs_response:
                 process_incoming_sqs_messages(sqs_response)
-            if len(LOGS):
-                publish_agent_logs()
 
             now = time.time()
             if now - start > HEARTBEAT_INTERVAL:
@@ -680,6 +717,13 @@ def main_loop():
                 delay *= 2
             if OPTIONS_FROM_CONFIG_FILE.debug:
                 terminate_script()
+
+        # Put logging in separate block so that happens every loop iteration
+        try:
+            if len(LOGS):
+                publish_agent_logs()
+        except Exception as ex:
+            log("Publish Exception caught: [%s]" % str(ex))
 
         time.sleep(delay)
 
@@ -722,6 +766,7 @@ def start_agent():
 
     publish_agent_online()
 
+    global PROCESSED_SQS_MESSAGES
     PROCESSED_SQS_MESSAGES = read_processed_messages_from_file()
     print PROCESSED_SQS_MESSAGES
 
