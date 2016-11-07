@@ -715,7 +715,7 @@ def main_loop():
             delay = 1
         except Exception as ex:
             log("Exception caught: [%s]" % str(ex))
-            log(traceback.format_exc())
+            print traceback.format_exc()
             # double the delay up to max
             if delay < MAX_EXCEPTION_WAIT_DELAY:
                 delay *= 2
