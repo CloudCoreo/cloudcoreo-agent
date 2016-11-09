@@ -24,8 +24,13 @@ import yaml
 import socket
 from core import __version__
 
+# times are in seconds
 SQS_GET_MESSAGES_SLEEP_TIME = 10
+MAX_EXCEPTION_WAIT_DELAY = 60
+HEARTBEAT_INTERVAL = 3600
+BOOTSCRIPT_LOG_INTERVAL = 10
 SQS_VISIBILITY_TIMEOUT = 0
+
 SNS_CLIENT = None
 SQS_CLIENT = None
 logging.basicConfig()
@@ -39,8 +44,6 @@ LOCK_FILE_PATH = ''
 PIP_PACKAGE_NAME = 'run_client'
 PROCESSED_SQS_MESSAGES_DICT_PATH = '/tmp/processed-messages.txt'
 LOGS = []
-MAX_EXCEPTION_WAIT_DELAY = 60
-HEARTBEAT_INTERVAL = 3600
 PROCESSED_SQS_MESSAGES = {}
 ALL_SERVERS_TARGET = "COREO::ALL_SERVERS"
 
@@ -503,34 +506,38 @@ def run_cmd(full_script_path, environment):
     log("running command: %s" % command)
     log("cwd=%s" % work_dir)
 
-    proc = subprocess.Popen(
-        command,
-        cwd=work_dir,
-        shell=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE)
+    log_filename = "/tmp/%s.log" % os.path.basename(full_script_path)
+    if os.path.exists(log_filename):
+        os.remove(log_filename)
+    with open(log_filename, 'w+') as log_file:
+        proc = subprocess.Popen(
+            command,
+            cwd=work_dir,
+            shell=False,
+            stdout=log_file,
+            stderr=log_file)
 
-    (proc_stdout, proc_stderr) = proc.communicate()
+        where = log_file.tell()
+        count = 0
+        while proc.poll() is None:
+            count += 1
+            if count % BOOTSCRIPT_LOG_INTERVAL*10 == 0:
+                count = 0
+                log("------ still waiting on [%s] with pid: %d" % (command, proc.pid))
+                log_file.seek(where)
+                for line in log_file:
+                    log(line)
+                    where = log_file.tell()
+            time.sleep(.1)
+
+    # get any remaining log messages
+    with open(log_filename, 'r') as log_file:
+        log_file.seek(where)
+        for line in log_file:
+            log(line)
+
     proc_ret_code = proc.returncode
-
-    with open(OPTIONS_FROM_CONFIG_FILE.log_file, 'a') as log_file:
-        log_file.write(proc_stdout)
-
-    if proc_ret_code == 0:
-        log("Success running script [%s]" % command)
-    else:
-        log("Error running script [%s]" % command)
-
-    log("  script return code: [%d]" % proc_ret_code)
-
-    log("  --- begin stdout ---")
-    if proc_stdout:
-        log(proc_stdout)
-    log("  --- end stdout ---")
-    log("  --- begin stderr ---")
-    if proc_stderr:
-        log(proc_stderr)
-    log("  --- end stderr ---")
+    log("[%s] return code: [%d]" % (command, proc_ret_code))
 
     publish_script_result(os.path.basename(command), proc_ret_code)
     publish_agent_logs()
@@ -577,7 +584,7 @@ def run_all_boot_scripts(repo_dir, server_name_dir):
         with open(LOCK_FILE_PATH, 'a') as lockFile:
             lockFile.write(COMPLETE_STRING)
 
-    return full_run_error
+    return full_run_error, num_order_files_processed
 
 
 def get_server_name():
@@ -610,7 +617,8 @@ def bootstrap():
     publish_op_scripts(repo_dir, server_name)
 
     # This should be last in bootstrap() because if no errors, the bootstrap file is marked completed
-    return run_all_boot_scripts(repo_dir, server_name)
+    (full_run_error, num_bootscripts_run) = run_all_boot_scripts(repo_dir, server_name)
+    return full_run_error
 
 
 def process_incoming_sqs_messages(sqs_response):
