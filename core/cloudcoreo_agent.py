@@ -523,7 +523,7 @@ def run_cmd(full_script_path, environment):
             count += 1
             if count % (BOOTSCRIPT_LOG_INTERVAL*10) == 0:
                 count = 0
-                log("------ still waiting on [%s] with pid: %d" % (command, proc.pid))
+                log("[CloudCoreo agent still waiting on [%s] with pid: %d]" % (command, proc.pid))
                 log_file.seek(where)
                 for line in log_file:
                     log(line)
