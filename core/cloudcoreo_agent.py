@@ -521,7 +521,7 @@ def run_cmd(full_script_path, environment):
         count = 0
         while proc.poll() is None:
             count += 1
-            if count % BOOTSCRIPT_LOG_INTERVAL*10 == 0:
+            if count % (BOOTSCRIPT_LOG_INTERVAL*10) == 0:
                 count = 0
                 log("------ still waiting on [%s] with pid: %d" % (command, proc.pid))
                 log_file.seek(where)
