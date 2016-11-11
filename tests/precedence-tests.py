@@ -326,13 +326,13 @@ class RunBootScripts(CompositeTests):
 
         server_name = "servers-nat"
         num_expected = 1
-        num_nat_order_files = run_all_boot_scripts(self._repodir, server_name)
+        (full_run_error, num_nat_order_files) = run_all_boot_scripts(self._repodir, server_name)
         print "---> ran %d order.yaml files for %s" % (num_nat_order_files, server_name)
         self.assertEqual(num_nat_order_files, num_expected, "expected to run %d script for %s" % (num_expected, server_name))
 
         server_name = "servers-vpn"
         num_expected = 4
-        num_vpn_order_files = run_all_boot_scripts(self._repodir, server_name)
+        (full_run_error, num_vpn_order_files) = run_all_boot_scripts(self._repodir, server_name)
         print "---> ran %d order.yaml files for %s" % (num_vpn_order_files, server_name)
         self.assertEqual(num_vpn_order_files, num_expected, "expected to run %d script for %s" % (num_expected, server_name))
 
