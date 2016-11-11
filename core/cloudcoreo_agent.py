@@ -122,7 +122,12 @@ def set_agent_uuid():
 
     # Save agent_uuid to config file
     with open(config_file_location, 'w') as ymlfile:
-        agent_uuid = uuid.uuid1()
+        # try to use ec2 instance-id as uuid
+        agent_uuid = ec2_instance_id()
+        if not agent_uuid:
+            # if we can't get instance-id, generate a uuid
+            agent_uuid = uuid.uuid1()
+            log("generating uuid")
         configs['agent_uuid'] = str(agent_uuid)
         ymlfile.write(yaml.dump(configs, default_style="'"))
 
@@ -226,10 +231,20 @@ def get_region():
     return region
 
 
+def ec2_instance_id():
+    return meta_data("instance-id")
+
+
 def meta_data(data_path):
     # using 169.254.169.254 instead of 'instance-data' because some people
     # like to modify their dhcp tables...
-    return requests.get('http://169.254.169.254/latest/meta-data/%s' % data_path).text
+    url = 'http://169.254.169.254/latest/meta-data/%s' % data_path
+    resp = requests.get(url)
+    if 200 <= resp.status_code < 300:
+        return resp.text
+    else:
+        log("error [%d] retrieving metadata: %s" % (resp.status_code, url))
+    return ''
 
 
 def get_coreo_key():
